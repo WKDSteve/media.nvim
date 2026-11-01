@@ -139,6 +139,16 @@ local function transcribe_tool()
   }
 end
 
+---@class Media.Hub.KindHandler
+---@field tool fun(): Media.Hub.Tool  Whether the kind could run right now; starts nothing
+---@field modes fun(): string[]       The `out=` modes this kind can deliver to
+---@field run fun(path: string, kind: Media.Hub.Kind, opts: table|nil, callback: fun(result: Media.Hub.Text|nil, err: string|nil): nil): Media.Transcribe.Handle|nil
+
+-- Declared here, filled in below the runners: `M.tool` and `M.modes` need it
+-- and the runners are defined after them.
+---@type table<string, Media.Hub.KindHandler>
+local KIND_HANDLERS
+
 --- Whether `:Media text` could run on this kind right now.
 ---
 --- Answered without starting anything, so a dashboard may ask once per row
@@ -146,9 +156,8 @@ end
 ---@param kind Media.Hub.Kind
 ---@return Media.Hub.Tool
 function M.tool(kind)
-  if kind == "image" then return image_tool() end
-  if kind == "pdf" then return pdf_tool() end
-  if kind == "audio" or kind == "video" then return transcribe_tool() end
+  local handler = KIND_HANDLERS[kind]
+  if handler then return handler.tool() end
   return {
     ok = false,
     tool = "none",
@@ -165,7 +174,8 @@ end
 ---@param kind Media.Hub.Kind
 ---@return string[]
 function M.modes(kind)
-  if kind == "audio" or kind == "video" then return require("media.output").MODES end
+  local handler = KIND_HANDLERS[kind]
+  if handler then return handler.modes() end
   return { "buffer", "sidecar" }
 end
 
@@ -260,6 +270,54 @@ local function run_media(path, kind, opts, callback)
   end)
 end
 
+---@internal
+---@return string[]
+local function file_modes()
+  return { "buffer", "sidecar" }
+end
+
+---@internal
+---@return string[]
+local function timed_modes()
+  return require("media.output").MODES
+end
+
+--- One entry per kind this module can turn into text. A new kind is one entry
+--- here, not another `if` in each of `tool`, `modes` and `run`.
+---@type table<string, Media.Hub.KindHandler>
+KIND_HANDLERS = {
+  image = {
+    tool = image_tool,
+    modes = file_modes,
+    run = function(path, _kind, _opts, callback)
+      run_image(path, callback)
+      return nil
+    end,
+  },
+  pdf = {
+    tool = pdf_tool,
+    modes = file_modes,
+    run = function(path, _kind, _opts, callback)
+      run_pdf(path, callback)
+      return nil
+    end,
+  },
+  audio = { tool = transcribe_tool, modes = timed_modes, run = run_media },
+  video = { tool = transcribe_tool, modes = timed_modes, run = run_media },
+}
+
+--- Teach the hub one more kind of file (replaces a handler of the same kind).
+---@param kind string
+---@param handler Media.Hub.KindHandler
+---@return nil
+function M.register(kind, handler)
+  vim.validate("kind", kind, "string")
+  vim.validate("tool", handler.tool, "function")
+  vim.validate("modes", handler.modes, "function")
+  vim.validate("run", handler.run, "function")
+  KIND_HANDLERS[kind] = handler
+end
+
 --- Turn `path` into text, whatever sort of file it is.
 ---
 --- The callback runs exactly once, on the main loop, as every callback in this
@@ -273,15 +331,8 @@ end
 function M.run(path, opts, callback)
   local kind = require("media.hub.kinds").of(path)
 
-  if kind == "image" then
-    run_image(path, callback)
-    return nil
-  end
-  if kind == "pdf" then
-    run_pdf(path, callback)
-    return nil
-  end
-  if kind == "audio" or kind == "video" then return run_media(path, kind, opts, callback) end
+  local handler = KIND_HANDLERS[kind]
+  if handler then return handler.run(path, kind, opts, callback) end
 
   -- The roadmap's own wording for the fourth branch: "anything else → a notify
   -- saying so". Said as an error to the caller rather than notified here, so

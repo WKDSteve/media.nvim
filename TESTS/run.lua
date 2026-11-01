@@ -43,6 +43,7 @@ local specs = {
   "hub_kinds_spec.lua",
   "hub_scan_spec.lua",
   "hub_text_spec.lua",
+  "hub_text_kinds_spec.lua",
   "hub_dashboard_spec.lua",
   "hub_actions_spec.lua",
   "keymaps_target_spec.lua",
