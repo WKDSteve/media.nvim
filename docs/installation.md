@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| Neovim | **0.10+** (`vim.system`, `vim.uv`) |
+| Neovim | **0.11+** (`vim.system`, `vim.uv`) |
 | [lib.nvim](https://github.com/WKDSteve/lib.nvim) | recommended — soft dependency, see below |
 | `ffmpeg` + `ffprobe` | required — one install, both binaries |
 | `mpv` | optional — sound for a played run, and `:Media window` / `media.play_window()` |

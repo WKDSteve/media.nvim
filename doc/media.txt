@@ -22,7 +22,7 @@ CONTENTS                                                      *media-contents*
 ==============================================================================
 1. REQUIREMENTS                                           *media-requirements*
 
-    Neovim 0.10+                (`vim.system`, `vim.uv`)
+    Neovim 0.11+                (`vim.system`, `vim.uv`)
     lib.nvim                    keymap registry, command completion
     ffmpeg + ffprobe            one install, both binaries
 
