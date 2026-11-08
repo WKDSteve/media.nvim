@@ -7,12 +7,13 @@ return {
   plugin = "media",
   -- How the spec files are run: "auto" = sniffed per file, "h" = on the project's own TESTS/harness.lua,
   -- "script" = a self-running script in its own process.
-  dialect = "h",
+  dialect = { ["TESTS/sheets_spec.lua"] = "busted", ["*"] = "h" },
   -- Dependencies (directory names) put on the runtimepath: $<NAME>_DIR, .deps/<name>, ../<name>,
   -- stdpath('data')/lazy/<name>.
-  deps = { "lib.nvim" },
+  deps = { "lib.nvim", "testing.nvim" },
   -- "none" = all specs in one nvim, "file" = one nvim per spec file
   -- (nothing leaks from one file into the next).
+  timeouts = { case_ms = 60000, file_ms = 300000 },
   isolated = "file",
   -- Safety nets (testing.nvim docs/GUARDS.md). With "file" the setup() state of smoke_spec (the
   -- MediaNvim autocmd group, :Media, the \M* keymaps) stays in that file's own nvim, so the state
@@ -32,6 +33,8 @@ return {
       "ffmpeg",
       -- probe_spec starts a deliberately nonexistent binary to cover the "tool missing" path.
       "does-not-exist",
+      -- sheets_spec starts a child editor per test sheet (TESTS/sheets/).
+      "nvim",
     },
   },
   -- The runner counts which commands, keymaps and autocommands the specs exercise (docs/SURFACE.md of testing.nvim);
