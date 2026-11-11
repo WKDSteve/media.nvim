@@ -58,6 +58,16 @@
       }
     },
     {
+      "bin": "whisper-ctranslate2",
+      "required": false,
+      "why": "Turns speech into text through faster-whisper (CTranslate2), several times quicker than the PyTorch engine and an alternative to whisper.cpp when building that is not an option. Needed by `:Media transcribe` only when `whisper-cli` is absent; any one engine is enough. It exists only as a Python package, so it is installed with pipx (or `pip install --user`), never with the system package manager.",
+      "see": "https://github.com/Softcatala/whisper-ctranslate2",
+      "pkg": {
+        "pipx": "whisper-ctranslate2",
+        "pip": "whisper-ctranslate2"
+      }
+    },
+    {
       "bin": "whisper",
       "required": false,
       "why": "The second transcription engine: OpenAI's reference Whisper (PyTorch), used by `engine = \"auto\"` when whisper.cpp is not ready. Installed with `pip install -U openai-whisper` (or `pipx install openai-whisper`); the plugin also finds it in Python's own Scripts directories when PATH does not reach them. It downloads a model by name on first use (`turbo` is 1.6 GB) — this plugin refuses that unless `transcribe.openai_whisper.allow_download = true`, and `:checkhealth media` lists what is already downloaded.",
