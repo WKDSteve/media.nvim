@@ -62,6 +62,11 @@ return {
       layout = "hosted",
       -- the steps that depend on the platform: the windows and macOS legs run only these
       platform = { "suite", "conformance" },
+      -- the test sheets media.info and media.render drive :Media on a real video (ffprobe comes with ffmpeg on every
+      -- manager): without it they would be a reported skip, which a feature sheet may not be under CI
+      packages = { { name = "ffmpeg", why = "the test sheets probe and render a real video" } },
+      -- `brew install ffmpeg` alone takes most of the default 15 minutes of the macOS leg
+      timeout = 40,
       -- `testing ci land`: a check branch ci/** runs the hosted legs, main moves to a commit only once it is green there
       land = true,
     },

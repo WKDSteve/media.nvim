@@ -5,6 +5,7 @@ return {
   id = "media.render",
   title = ":Media frame and sheet, and the keys <leader>Mp Mf Ms Mo",
   task = "media.nvim/testblatt-bindings-checkliste",
+  feature = "media.stills",
   sizes = { { rows = 40, cols = 120 } },
   requires = {
     {
@@ -42,7 +43,9 @@ return {
     { lua = [[_G.forget()]] },
     { keys = [[\Mo]] },
     {
-      expect = [[_G.played == _G.video or vim.fs.normalize(_G.played or "") == vim.fs.normalize(_G.video)]],
+      -- by its real path: on macOS the temp folder is /var/..., a link to /private/var/..., and the plugin hands over
+      -- the resolved one
+      expect = [[_G.played ~= nil and vim.uv.fs_realpath(_G.played) == vim.uv.fs_realpath(_G.video)]],
       note = "<leader>Mo hands the file to the player",
     },
     { keys = [[\Mp]] },

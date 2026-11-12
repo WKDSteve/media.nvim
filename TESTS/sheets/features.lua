@@ -2,8 +2,8 @@
 -- which ones have a feature sheet (`feature = "<id>"`) and in which state, and K16 warns about a sheet that names an
 -- id not listed here. Data: read with an empty environment like a sheet (testing.nvim docs/SHEETS.md).
 -- The list follows docs/what-you-get.md and docs/commands.md (there is no manual checklist for media.nvim).
--- The two sheets (media-info, media-render) carry no `feature`: they require ffmpeg and ffprobe, which the workflow
--- does not install, and a requires skip of a feature sheet is red under CI.
+-- The two sheets require ffmpeg and ffprobe; the workflow installs ffmpeg on every hosted leg (`packages` in
+-- .testing.lua), so they run there and name their feature (a requires skip of a feature sheet is red under CI).
 return {
   {
     id = "media.describe",

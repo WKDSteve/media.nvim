@@ -65,7 +65,7 @@ jobs:
     # Not on main when the same commit was green on a check branch ci/** (testing ci land): it ran there already.
     if: ${{ !cancelled() && needs.already-verified.outputs.verified != 'true' }}
     runs-on: ${{ matrix.runs-on }}
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       # One platform failing must not cancel the other.
       fail-fast: false
@@ -118,6 +118,16 @@ jobs:
           echo "d68da17fca0697d9e2fb04201f3884abd259fa558b3a449bccaed47f1390defc  $RUNNER_TEMP/luacheck" | sha256sum -c -
           install -D -m 755 "$RUNNER_TEMP/luacheck" "$HOME/.local/bin/luacheck"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # ffmpeg: the test sheets probe and render a real video
+      - name: Install ffmpeg (Linux)
+        if: matrix.hosted && runner.os == 'Linux'
+        run: sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg (macOS)
+        if: matrix.hosted && runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Install ffmpeg (Windows)
+        if: matrix.hosted && runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
       # The result cache (docs/CI-CACHE.md of testing.nvim). The key is only the transport: every entry carries its
       # own full spec key and is checked against it when read, so a wrong restore can lower the hit rate and never turn
       # a result green. A pull request only restores; only a push to main saves.

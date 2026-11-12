@@ -4,6 +4,7 @@ return {
   id = "media.info",
   title = ":Media engines, health and probe",
   task = "media.nvim/testblatt-bindings-checkliste",
+  feature = "media.health",
   sizes = { { rows = 40, cols = 120 } },
   requires = {
     {
