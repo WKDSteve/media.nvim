@@ -101,3 +101,19 @@ question each page answers.
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 media.nvim is released under the [MIT License](https://opensource.org/licenses/MIT).
+
+<!-- connections:begin (written by the app-icons tool of the workshop; change integrations.json there, not this block) -->
+## Connections
+
+![media.nvim: what it uses and what uses it](assets/graphs/media.nvim.png)
+
+**Uses**
+
+- [images.nvim](https://github.com/WKDSteve/images.nvim): media.nvim reads the text of an image with the OCR of images.nvim (`images.ocr`). ([picture](assets/graphs/pair/media.nvim--images.nvim.png))
+- [pdfport.nvim](https://github.com/WKDSteve/pdfport.nvim): media.nvim uses pdfport.nvim as its PDF tool when it is installed. ([picture](assets/graphs/pair/media.nvim--pdfport.nvim.png))
+- [lib.nvim](https://github.com/WKDSteve/lib.nvim): the shared base of the plugins.
+
+**Used by**
+
+- [hover.nvim](https://github.com/WKDSteve/hover.nvim): hover.nvim asks media.nvim whether a target is a media file (`media.is_media`) and takes its player for audio and video. ([picture](assets/graphs/pair/hover.nvim--media.nvim.png))
+<!-- connections:end -->
