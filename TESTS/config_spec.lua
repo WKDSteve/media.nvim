@@ -1,8 +1,9 @@
--- media.config: the no-setup() snapshot and the merge. Must run before any
--- other spec touches `media.config` — the snapshot-identity assertion below
--- only means anything the first time `M.get()` is ever called in this
--- process, before `setup()` has run. `TESTS/run.lua` keeps this file first
--- in the spec list for exactly that reason.
+-- media.config: the no-setup() snapshot and the merge. The snapshot-identity
+-- assertion below only means anything the first time `M.get()` is ever called
+-- in this process, before `setup()` has run. testing.nvim runs every spec file
+-- in its own nvim (`isolated = "file"` in .testing.lua), so no other spec has
+-- touched `media.config` yet; the standalone `TESTS/run.lua` keeps this file
+-- first in its list for the same reason.
 ---@diagnostic disable: need-check-nil
 
 ---@param H table

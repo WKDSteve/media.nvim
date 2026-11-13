@@ -1,9 +1,13 @@
--- TESTS/run.lua — legacy headless runner of media.nvim, kept for its order.
+-- TESTS/run.lua — legacy headless runner of media.nvim.
 --
 -- The suite is run by testing.nvim now: `bash scripts/test.sh`. testing.nvim
--- reads the spec list below (it never executes this file) to order the specs:
--- config_spec first, smoke_spec last, see the comment above `specs`. The
--- standalone invocation still works for a cross-check against the new runner:
+-- never executes this file; it only reads the spec list below as an order hint
+-- and the sentinel line at the end. With `isolated = "file"` (.testing.lua)
+-- every spec file runs in its own nvim, so that order no longer matters: no
+-- spec sees state another one left behind. Spec files not listed here (the
+-- busted-style sheets_spec.lua, which this loop could not run) are discovered
+-- by name and run after the listed ones. The standalone invocation runs the
+-- listed specs in ONE nvim, where the order below still matters:
 --   nvim -n -i NONE --headless -u NONE -c "set rtp+=." -c "set rtp+=../lib.nvim" \
 --        -c "luafile TESTS/run.lua" -c "qa!"
 
@@ -20,7 +24,8 @@ package.path = table.concat({
   package.path,
 }, ";")
 
--- Order matters at both ends: config_spec asserts about the state of
+-- Order matters at both ends of this standalone loop (one shared nvim; under
+-- testing.nvim every file has its own): config_spec asserts about the state of
 -- `media.config` before anything has ever called `setup()`, so it has to run
 -- before any other spec that does (nearly all of them). At the other end,
 -- smoke_spec calls setup(), which loads the binding modules and registers a

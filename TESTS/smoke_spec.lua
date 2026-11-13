@@ -1,7 +1,9 @@
 -- Everything loads, and setup() leaves the editor in the state it promises.
 --
--- Last in the run order on purpose: it calls setup(), which requires the
--- binding modules that the earlier specs assert are still untouched.
+-- It calls setup(), which requires the binding modules that other specs assert
+-- are still untouched. testing.nvim runs every spec file in its own nvim
+-- (`isolated = "file"` in .testing.lua), so that state never reaches them; the
+-- standalone `TESTS/run.lua` runs this file after them for the same reason.
 ---@diagnostic disable: need-check-nil
 
 ---@param H table

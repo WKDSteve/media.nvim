@@ -1,6 +1,7 @@
 -- media.health: `M.check()` must never raise, on a machine with none of its
--- external toolchain — which is exactly the machine CI runs on (no ffmpeg,
--- no ffprobe, no mpv, no whisper-cli, no configured model).
+-- external toolchain (no ffmpeg, no ffprobe, no mpv, no whisper-cli, no
+-- configured model) as well as on one that has some of it (the CI legs install
+-- ffmpeg for the test sheets).
 --
 -- Every one of the four patterns this campaign keeps finding in a `health.lua`
 -- is the same shape: report "X is missing" and then call into X anyway right

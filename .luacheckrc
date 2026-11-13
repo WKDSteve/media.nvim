@@ -13,8 +13,9 @@ max_line_length = false
 
 -- `NEW-49`: luacheck's built-in busted detection matches `**/spec/**`,
 -- `**/test/**` and `**/tests/**` — all lowercase. `TESTS/` matches none of
--- them. This suite is framework-free anyway (see TESTS/harness.lua), so what
--- it needs is not busted globals but permission to stub `vim.*` fields.
+-- them. Nearly every spec runs on the project's own TESTS/harness.lua, so what
+-- the suite needs is not busted globals but permission to stub `vim.*` fields;
+-- the one busted-style spec (TESTS/sheets_spec.lua) declares its globals inline.
 files["TESTS/"] = {
   ignore = {
     "122", -- setting a read-only field of a global (vim.*)

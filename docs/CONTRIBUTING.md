@@ -73,16 +73,21 @@ looks for testing.nvim and lib.nvim in `$TESTING_NVIM_DIR` / `$LIB_NVIM_DIR`,
 `.deps/<name>`, a sibling checkout, and `stdpath('data')/lazy/<name>`, and fails
 loudly (exit 1) when one is missing.
 
-Framework-free, and needs **no ffmpeg**. That is not a limitation but the design:
+The unit specs need **no ffmpeg**. That is not a limitation but the design:
 the decisions worth asserting — argument order, offset arithmetic, cache-key
 separation, ffprobe's JSON shapes — are all pure functions, split out from the
-processes that use them for exactly this reason.
+processes that use them for exactly this reason. The exception is
+`TESTS/sheets_spec.lua` (busted style), which runs the live test sheets in
+`TESTS/sheets/` on a real video: they need ffmpeg and ffprobe and are reported
+as skipped where those are missing (the CI legs install ffmpeg, and there such a
+skip is red).
 
 The runner exits non-zero on any failure and prints which spec failed. Specs are
-discovered by name (`*_spec.lua`); `TESTS/run.lua` is no longer executed, it only
-fixes the order (testing.nvim reads its list). If you add a spec, add its filename
-there too; `smoke_spec.lua` stays last, because it calls `setup()` and the specs before it assert against a state
-where that has not happened.
+discovered by name (`*_spec.lua`) and every spec file runs in its own nvim
+(`isolated = "file"` in `.testing.lua`), so the order does not matter and no spec
+sees the `setup()` state of another. `TESTS/run.lua` is no longer executed by
+testing.nvim; its list is only an order hint and the order of its standalone
+one-process loop (`config_spec.lua` first, `smoke_spec.lua` last).
 
 ### Live runs of a transcription engine
 
