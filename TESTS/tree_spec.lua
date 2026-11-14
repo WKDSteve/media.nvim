@@ -15,7 +15,11 @@ return function(H)
   local tree = require("media.integrations.tree")
   local registry = require("lib.nvim.tree.registry")
 
-  local root = transcripts.norm(vim.fs.normalize(vim.fn.tempname()))
+  local root = vim.fs.normalize(vim.fn.tempname())
+  vim.fn.mkdir(root, "p")
+  -- The folder as the editor names it once it is the working directory: on macOS the temp folder
+  -- lies behind a link (/var -> /private/var), and the scan starts from `getcwd()`.
+  root = transcripts.norm(uv.fs_realpath(root) or root)
   for _, dir in ipairs({ "talks", "node_modules/pkg", ".git", "skipme" }) do
     vim.fn.mkdir(root .. "/" .. dir, "p")
   end
