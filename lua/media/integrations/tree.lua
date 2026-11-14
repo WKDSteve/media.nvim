@@ -25,7 +25,9 @@
 --- for an audio node its waveform (`media.core.waveform`): a PNG in the cache of
 --- media.nvim, handed to the tree's preview as the picture to show. Rendering
 --- runs in the background and a player is never started. Without ffmpeg the
---- answer is one line that says so.
+--- answer is one line that says so. While the preview follows the cursor
+--- (`ctx.trigger == "cursor"`) nothing is rendered: the answer is what ffprobe
+--- says about the file, as lines.
 ---
 --- Soft in both directions. The registry is lib.nvim's: without a tree that reads
 --- it the entries are never looked at, without a lib.nvim that has the registry
@@ -43,6 +45,7 @@ M.DEBOUNCE_MS = 400
 ---What the tree's preview is told about a node, in one of three shapes.
 ---@class Media.Tree.Preview
 ---@field image? string  A picture to show in place of the file.
+---@field lines? string[]  What is known about the file, while the preview follows the cursor.
 ---@field title? string  A line about the file (size, duration, codec), when it is known.
 ---@field note? string   One line instead of a picture: what is missing.
 
@@ -217,11 +220,15 @@ end
 
 ---The preview of a media node: a still of a video, the waveform of an audio file. Returns at once;
 ---`done` is called exactly once, on the main loop, unless the returned function was called before.
+---
+---With `ctx.trigger == "cursor"` (the preview follows the cursor from node to node) the answer is the
+---record of the file as lines (`media.ui.describe`): a tree shows no picture per line it passes, and
+---a still rendered for each of them would be work for a title.
 ---@param node { path?: string }
----@param _ctx table|nil  What the tree says about its preview; the size of the still is `frame.width`.
+---@param ctx { trigger?: string }|nil  What the tree says about its preview.
 ---@param done fun(result: Media.Tree.Preview)
 ---@return fun() cancel
-function M.preview(node, _ctx, done)
+function M.preview(node, ctx, done)
   local cancelled = false
   ---@type Media.Render.Handle|nil  the render the answer waits for
   local running = nil
@@ -245,6 +252,26 @@ function M.preview(node, _ctx, done)
     end)
     return cancel
   end
+  ---One line out of whatever a tool printed.
+  ---@param err string|nil
+  ---@return string
+  local function one_line(err)
+    return "media.nvim: " .. (tostring(err or "nothing to show"):gsub("%s*\n.*", ""))
+  end
+
+  if type(ctx) == "table" and ctx.trigger == "cursor" then
+    require("media.core.probe").probe(path, function(record, err)
+      if not record then
+        answer({ note = one_line(err) })
+        return
+      end
+      local ui = require("media.ui")
+      local title = ui.summary(record)
+      answer({ lines = ui.describe(record), title = title ~= "" and title or nil })
+    end)
+    return cancel
+  end
+
   if not require("media.core.bin").find("ffmpeg") then
     vim.schedule(function()
       answer({ note = "media.nvim: ffmpeg not found (install it, or set `bin.ffmpeg`)" })
@@ -258,7 +285,7 @@ function M.preview(node, _ctx, done)
   ---@param err string|nil
   local function finish(png, err)
     if not png then
-      answer({ note = "media.nvim: " .. tostring(err or "nothing to show"):gsub("%s*\n.*", "") })
+      answer({ note = one_line(err) })
       return
     end
     -- known by now: both renderers probe before they render

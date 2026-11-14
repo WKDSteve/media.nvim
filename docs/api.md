@@ -161,8 +161,9 @@ are usable on their own:
 local tree = require("media.integrations.tree")
 
 tree.previews(node)        -- is this a node media.nvim has a picture for (by extension)
-local cancel = tree.preview(node, nil, function(result)
+local cancel = tree.preview(node, ctx, function(result)
   -- result.image: a PNG on disk (a still, or the waveform of an audio file)
+  -- result.lines: with ctx.trigger == "cursor": the record of the file, nothing is rendered
   -- result.title: one line about the file, when it is known
   -- result.note:  one line instead of a picture ("ffmpeg not found ...")
 end)

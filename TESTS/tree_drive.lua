@@ -55,7 +55,7 @@ local T = dofile(filetree .. "/TESTS/native_drive.lua")({
     "audio/jingle.mp3",
     "lua/init.lua",
   },
-  features = { preview = { enabled = true } },
+  features = { preview = { enabled = true, cursor_debounce_ms = 10 } },
   before_setup = function(T)
     -- what the tree hands a picture to
     package.loaded["images"] = {
@@ -73,6 +73,12 @@ local T = dofile(filetree .. "/TESTS/native_drive.lua")({
       calls[#calls + 1] = "frame " .. T.norm(path)
       vim.schedule(function()
         callback("/cache/frame.png", nil)
+      end)
+    end
+    require("media.core.probe").probe = function(path, callback)
+      calls[#calls + 1] = "probe " .. T.norm(path)
+      vim.schedule(function()
+        callback({ path = path, container = "mp4", duration = 61, has_video = true }, nil)
       end)
     end
     require("media.core.waveform").waveform = function(path, _, callback)
@@ -170,6 +176,29 @@ T.eq(
   called(from),
   { "frame talks/standup.mp4", "show /cache/frame.png" }
 )
+
+-- the preview follows the cursor: what ffprobe says about the next file, and no render for it
+T.on("README.md")
+T.feed("<Tab>")
+T.settle(200)
+from = #calls + 1
+T.on("talks/retro.mp4")
+T.ok(
+  "moving onto a media file with a preview shown asks media.nvim",
+  T.wait(function()
+    return #calls >= from
+  end, 3000)
+)
+T.settle(200)
+T.eq("... for the record of the file, not for a picture", called(from), { "probe talks/retro.mp4" })
+T.ok(
+  "... which the preview shows",
+  T.wait(function()
+    return visible(#T.notes + 1):find("duration", 1, true) ~= nil
+  end, 3000)
+)
+require("filetree.features.ui.preview").close()
+T.close_floats()
 
 from = #calls + 1
 T.on("audio/jingle.mp3")

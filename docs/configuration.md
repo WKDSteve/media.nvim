@@ -232,7 +232,10 @@ folder and the top of a drive are not searched.
 **The preview** of a video node is one still (the one `frame` describes), of
 an audio node its waveform (`waveform`). It is rendered in the background and
 shown by whatever draws pictures for the tree; no player is started. Without
-ffmpeg the preview says so in one line.
+ffmpeg the preview says so in one line. While the preview follows the cursor
+from node to node it shows what ffprobe says about the file (duration, codecs,
+resolution) and renders nothing; the preview key on the node brings the
+picture.
 
 ## `progress_style`
 

@@ -55,6 +55,7 @@ return function(H)
     frame = frame.frame,
     waveform = waveform.waveform,
     cached = probe.cached,
+    probe = probe.probe,
     play = play.play,
     player_start = player.start,
     system = vim.system,
@@ -404,6 +405,49 @@ return function(H)
     H.eq(#calls, 0)
     has_ffmpeg = true
 
+    -- While the preview follows the cursor nothing is rendered: the record of the file, as lines.
+    calls = {}
+    local record = {
+      path = "/v/talk.mp4",
+      container = "mp4",
+      duration = 61,
+      has_video = true,
+      video_codec = "h264",
+      width = 1920,
+      height = 1080,
+    }
+    probe.probe = function(path, callback)
+      calls[#calls + 1] = "probe " .. path
+      vim.schedule(function()
+        if path == "/v/broken.mp4" then
+          callback(nil, "ffprobe not found\nand more")
+        else
+          callback(record, nil)
+        end
+      end)
+    end
+    local following
+    tree.preview({ path = "/v/talk.mp4" }, { mode = "float", trigger = "cursor" }, function(got)
+      following = got
+    end)
+    vim.wait(2000, function()
+      return following ~= nil
+    end, 5)
+    H.eq(table.concat(calls, "\n"), "probe /v/talk.mp4", "ffprobe is asked, no renderer")
+    H.eq(following.image, nil, "no picture for a node the cursor only passes")
+    H.eq(following.lines[1], "talk.mp4")
+    H.ok(table.concat(following.lines, "\n"):find("1920x1080", 1, true), "the record of the file")
+    H.eq(following.title, "1920x1080 · 1:01 · h264")
+    following = nil
+    tree.preview({ path = "/v/broken.mp4" }, { trigger = "cursor" }, function(got)
+      following = got
+    end)
+    vim.wait(2000, function()
+      return following ~= nil
+    end, 5)
+    H.eq(following.note, "media.nvim: ffprobe not found", "what is missing, in one line")
+    probe.probe = real.probe
+
     -- a node the cursor left: the answer is dropped
     renders.frame = { png = "/cache/frame.png" }
     local late = false
@@ -465,6 +509,7 @@ return function(H)
   frame.frame = real.frame
   waveform.waveform = real.waveform
   probe.cached = real.cached
+  probe.probe = real.probe
   play.play = real.play
   player.start = real.player_start
   vim.system = real.system
