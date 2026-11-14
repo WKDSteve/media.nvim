@@ -79,6 +79,7 @@ local specs = {
   "usrcmds_window_spec.lua",
   -- Calls setup() as well, and changes the working directory while it runs.
   "tree_spec.lua",
+  "render_cancel_spec.lua",
 }
 
 --- Straight to stdout rather than through `print`: a spec that opens a window

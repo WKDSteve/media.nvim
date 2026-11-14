@@ -59,6 +59,7 @@ return function(H)
     player_start = player.start,
     system = vim.system,
     scan = transcripts.scan,
+    scan_sync = transcripts.scan_sync,
     previewer = registry.previewer,
   }
 
@@ -248,6 +249,33 @@ return function(H)
       return tree.last_scan() ~= nil
     end, 5)
     H.eq(entry.get(root .. "/notes.m4a").text, "txt")
+
+    -- A transcript written while a scan is on its way: that scan may have read the folder before,
+    -- and its answer replaces the table. So another scan follows it.
+    local asked, pending = 0, nil
+    transcripts.scan = function(_, on_done)
+      asked = asked + 1
+      pending = on_done
+      return function() end
+    end
+    tree.rescan()
+    H.eq(asked, 1, "a scan is on its way")
+    write("talks/late.mp4", now - 1000)
+    write("talks/late.mp4.transcript.md", now - 500)
+    tree.refresh(root .. "/talks/late.mp4")
+    H.eq(entry.get(root .. "/talks/late.mp4").status, "ok")
+    -- the answer of the scan that had read `talks` before the file was there
+    local before = real.scan_sync(root)
+    before.transcripts[root .. "/talks/late.mp4"] = nil
+    pending(before)
+    H.ok(
+      vim.wait(2000, function()
+        return asked == 2
+      end, 5),
+      "the scan that was on its way is followed by another"
+    )
+    pending(real.scan_sync(root))
+    H.eq(entry.get(root .. "/talks/late.mp4").status, "ok", "which finds the transcript")
     leave()
     tree.unregister()
     H.eq(registry.get("decorator", "transcript"), nil, "unregister() takes the entry out")
@@ -273,20 +301,29 @@ return function(H)
 
     local calls, spawned, played = {}, 0, 0
     local has_ffmpeg = true
-    ---@type table<string, { png?: string, err?: string }>
+    ---@type table<string, { png?: string, err?: string, hold?: boolean }>
     local renders = {}
     bin.find = function(name)
       if name == "ffmpeg" and not has_ffmpeg then return nil end
       return name
     end
+    local dropped = {}
     ---@param kind string
     local function renderer(kind)
       return function(path, _, callback)
         calls[#calls + 1] = kind .. " " .. path
         local answer = renders[kind] or {}
-        vim.schedule(function()
-          callback(answer.png, answer.err)
-        end)
+        -- `hold`: a render that is still at work
+        if not answer.hold then
+          vim.schedule(function()
+            callback(answer.png, answer.err)
+          end)
+        end
+        return {
+          cancel = function()
+            dropped[#dropped + 1] = kind
+          end,
+        }
       end
     end
     frame.frame = renderer("frame")
@@ -336,7 +373,7 @@ return function(H)
 
     -- a container that usually holds a film and here holds sound only
     calls = {}
-    renders.frame = { err = "no picture in this file" }
+    renders.frame = { err = frame.NO_PICTURE }
     shown = preview("/v/podcast.mkv")
     H.eq(shown.image, "/cache/wave.png")
     H.eq(table.concat(calls, "\n"), "frame /v/podcast.mkv\nwaveform /v/podcast.mkv")
@@ -373,9 +410,25 @@ return function(H)
     local drop = tree.preview({ path = "/v/talk.mp4" }, nil, function()
       late = true
     end)
+    H.eq(#dropped, 0)
     drop()
     vim.wait(60)
     H.falsy(late, "after cancel() done is never called")
+    H.eq(table.concat(dropped, " "), "frame", "and the render it waited for is given up")
+    renders.frame = { err = frame.NO_PICTURE }
+    renders.waveform = { hold = true }
+    dropped = {}
+    calls = {}
+    drop = tree.preview({ path = "/v/podcast.mkv" }, nil, function()
+      late = true
+    end)
+    vim.wait(60, function()
+      return #calls > 0 and calls[#calls]:find("waveform", 1, true) ~= nil
+    end, 5)
+    drop()
+    H.eq(dropped[#dropped], "waveform", "the render that is running now, not the first one")
+    vim.wait(60)
+    H.falsy(late)
 
     H.eq(spawned, 0, "no process was started")
     H.eq(played, 0, "and no player")

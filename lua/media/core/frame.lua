@@ -30,6 +30,11 @@ local exit_message = require("media.core.proc").exit_message
 
 local M = {}
 
+--- What `frame` answers for a file without a video stream and without cover
+--- art. A value a caller may compare against: it is the one failure with a
+--- sensible next step (show the waveform instead).
+M.NO_PICTURE = "no picture in this file"
+
 --- The argv for one extraction.
 ---
 --- Pure, and public, for the reason `pdfport.core.rasterize.args` is: the
@@ -137,34 +142,53 @@ end
 ---
 --- The callback runs exactly once, on the main loop. A cache hit is the common
 --- case after the first look at a file and costs one `fs_stat`.
+---
+--- The returned handle drops the caller's interest: after `cancel()` the
+--- callback is not called, and a render that still waits for a slot and that
+--- nobody else asked for is taken out of the queue (`media.core.cache.ensure`).
+--- A render that already runs is finished: its PNG is in the cache for the
+--- next one who asks.
 ---@param path string
 ---@param opts Media.FrameOpts|nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Render.Handle
 function M.frame(path, opts, callback)
   opts = opts or {}
   local cfg = require("media.config").get()
   local at = opts.at ~= nil and opts.at or cfg.frame.at
   local width = opts.width or cfg.frame.width
 
+  local cancelled = false
+  ---@type { cancel: fun(): nil }|nil
+  local queued = nil
+  ---@type Media.Render.Handle
+  local handle = {
+    cancel = function()
+      cancelled = true
+      if queued then queued.cancel() end
+    end,
+  }
+
   local bin = require("media.core.bin").find("ffmpeg")
   if not bin then
     vim.schedule(function()
+      if cancelled then return end
       callback(nil, "ffmpeg not found — install it, or set `bin.ffmpeg`")
     end)
-    return
+    return handle
   end
 
   -- The probe comes first even when the offset needs no duration, because its
   -- other answer decides the argv: a file whose only picture is cover art must
   -- not be seeked into. It is cached, so this is free from the second call on.
   require("media.core.probe").probe(path, function(probe, perr)
+    if cancelled then return end
     if not probe then
       callback(nil, perr)
       return
     end
     if not probe.has_video and not probe.has_cover then
-      callback(nil, "no picture in this file")
+      callback(nil, M.NO_PICTURE)
       return
     end
 
@@ -185,7 +209,7 @@ function M.frame(path, opts, callback)
       return
     end
 
-    require("media.core.cache").ensure(out, function(done, tmp)
+    queued = require("media.core.cache").ensure(out, function(done, tmp)
       local argv = M.args({
         ffmpeg = bin,
         path = path,
@@ -204,6 +228,7 @@ function M.frame(path, opts, callback)
       end)
     end, callback, { priority = opts.priority })
   end)
+  return handle
 end
 
 --- Render a still nobody has asked for yet, and forget about it.

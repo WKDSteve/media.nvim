@@ -73,7 +73,7 @@ end
 ---@param path string
 ---@param opts Media.WaveformOpts|nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Render.Handle
 local function render(mode, path, opts, callback)
   opts = opts or {}
   local cfg = require("media.config").get()
@@ -81,15 +81,28 @@ local function render(mode, path, opts, callback)
   local height = math.max(32, math.floor(opts.height or cfg.waveform.height))
   local colors = mode == "wave" and (opts.colors or cfg.waveform.colors) or nil
 
+  local cancelled = false
+  ---@type { cancel: fun(): nil }|nil
+  local queued = nil
+  ---@type Media.Render.Handle
+  local handle = {
+    cancel = function()
+      cancelled = true
+      if queued then queued.cancel() end
+    end,
+  }
+
   local bin = require("media.core.bin").find("ffmpeg")
   if not bin then
     vim.schedule(function()
+      if cancelled then return end
       callback(nil, "ffmpeg not found — install it, or set `bin.ffmpeg`")
     end)
-    return
+    return handle
   end
 
   require("media.core.probe").probe(path, function(probe, perr)
+    if cancelled then return end
     if not probe then
       callback(nil, perr)
       return
@@ -106,7 +119,7 @@ local function render(mode, path, opts, callback)
       return
     end
 
-    require("media.core.cache").ensure(out, function(done, tmp)
+    queued = require("media.core.cache").ensure(out, function(done, tmp)
       local argv = M.args({
         ffmpeg = bin,
         path = path,
@@ -126,24 +139,26 @@ local function render(mode, path, opts, callback)
       end)
     end, callback)
   end)
+  return handle
 end
 
---- A PNG of `path`'s waveform.
+--- A PNG of `path`'s waveform. The handle drops the caller's interest, as
+--- `media.core.frame.frame`'s does.
 ---@param path string
 ---@param opts Media.WaveformOpts|nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Render.Handle
 function M.waveform(path, opts, callback)
-  render("wave", path, opts, callback)
+  return render("wave", path, opts, callback)
 end
 
 --- A PNG of `path`'s spectrogram.
 ---@param path string
 ---@param opts Media.WaveformOpts|nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Render.Handle
 function M.spectrogram(path, opts, callback)
-  render("spectrum", path, opts, callback)
+  return render("spectrum", path, opts, callback)
 end
 
 return M

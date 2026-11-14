@@ -61,6 +61,21 @@ output.written_path(path, "srt")        -- "<path>.srt", or nil for a buffer
 output.deliver(path, transcript, "srt") -- ok, err
 ```
 
+### Giving up on a still
+
+`media.frame`, `media.waveform` and `media.spectrogram` return a handle:
+
+```lua
+local handle = media.frame(path, {}, function(png, err) show(png) end)
+handle.cancel()  -- the cursor moved on
+```
+
+After `cancel()` the callback is not called. A render that still waits for a
+slot, and that nobody else asked for, leaves the queue; one that already runs
+is finished, and its PNG is in the cache for the next one who asks. A file
+without a video stream or cover art answers `frame` with the error
+`require("media.core.frame").NO_PICTURE`.
+
 ### Rendering a still before it is asked for
 
 `media.prefetch_frame` is `media.frame` with nobody listening: it starts the

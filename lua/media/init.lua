@@ -117,7 +117,7 @@ end
 ---@param path string
 ---@param opts Media.FrameOpts|nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Render.Handle  # `cancel()`: the callback is not called, a queued render is dropped
 function M.frame(path, opts, callback)
   return require("media.core.frame").frame(path, opts, callback)
 end
@@ -168,7 +168,7 @@ end
 ---@param path string
 ---@param opts Media.WaveformOpts|nil
 ---@param callback fun(png: string|nil, err: string|nil): nil
----@return nil
+---@return Media.Render.Handle
 function M.waveform(path, opts, callback)
   return require("media.core.waveform").waveform(path, opts, callback)
 end

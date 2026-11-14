@@ -146,10 +146,13 @@ function M.refresh(path)
   badges[path] = status and badge(status) or nil
   if last then last.transcripts[path] = status end
   tell({ path })
+  -- A scan that is on its way may have read the folder before the file changed, and its answer
+  -- replaces the table: look once more when it is through.
+  if cancel_scan then M.rescan_soon() end
 end
 
 ---`rescan` after `DEBOUNCE_MS` without another call.
-local function rescan_soon()
+function M.rescan_soon()
   if not timer then timer = vim.uv.new_timer() end
   if not timer then
     M.rescan()
@@ -170,7 +173,7 @@ local function start_listening()
   vim.api.nvim_create_autocmd("User", {
     group = group,
     pattern = { "FiletreeChanged", "FileopsChanged" },
-    callback = rescan_soon,
+    callback = M.rescan_soon,
   })
   vim.api.nvim_create_autocmd("User", {
     group = group,
@@ -180,7 +183,7 @@ local function start_listening()
       if type(data) == "table" then M.refresh(data.path) end
     end,
   })
-  vim.api.nvim_create_autocmd("DirChanged", { group = group, callback = rescan_soon })
+  vim.api.nvim_create_autocmd("DirChanged", { group = group, callback = M.rescan_soon })
 end
 
 local function stop_listening()
@@ -220,6 +223,8 @@ end
 ---@return fun() cancel
 function M.preview(node, _ctx, done)
   local cancelled = false
+  ---@type Media.Render.Handle|nil  the render the answer waits for
+  local running = nil
   local path = node.path
   ---@param result Media.Tree.Preview
   local function answer(result)
@@ -227,8 +232,11 @@ function M.preview(node, _ctx, done)
     cancelled = true
     done(result)
   end
+  -- A node the cursor left: the answer is dropped, and so is a render that still waits for a slot
+  -- (moving down a folder of recordings must not queue a waveform for each of them).
   local function cancel()
     cancelled = true
+    if running then running.cancel() end
   end
 
   if type(path) ~= "string" or not M.previews(node) then
@@ -260,15 +268,16 @@ function M.preview(node, _ctx, done)
   end
 
   local function waveform()
-    require("media.core.waveform").waveform(path, nil, finish)
+    running = require("media.core.waveform").waveform(path, nil, finish)
   end
 
   if formats.is_audio(path) then
     waveform()
   else
-    require("media.core.frame").frame(path, nil, function(png, err)
+    local frame = require("media.core.frame")
+    running = frame.frame(path, nil, function(png, err)
       -- a container that usually holds a film and here holds sound only
-      if not png and not cancelled and err == "no picture in this file" then
+      if not png and not cancelled and err == frame.NO_PICTURE then
         waveform()
         return
       end

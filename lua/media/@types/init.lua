@@ -276,6 +276,10 @@
 ---@field width integer|nil     # width of the whole sheet
 ---@field margin integer|nil
 
+--- What `media.frame`, `media.waveform` and `media.spectrogram` return.
+---@class Media.Render.Handle
+---@field cancel fun(): nil  # the callback is not called any more; a render still waiting for a slot is dropped
+
 ---@class Media.WaveformOpts
 ---@field width integer|nil     # default `waveform.width`
 ---@field height integer|nil    # default `waveform.height`
