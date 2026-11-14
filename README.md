@@ -57,6 +57,11 @@ when there is none it opens the dashboard.
 > consumer: a `.mp4` path under the cursor opens a float with the poster frame
 > in it, in the video's own aspect ratio.
 >
+> **[filetree.nvim](https://github.com/WKDSteve/filetree.nvim)** — its own
+> tree shows a badge on every video or audio file that has a transcript, and a
+> still or the waveform as the preview of such a file
+> ([`tree`](docs/configuration.md#tree)).
+>
 > All of the above are soft, and so is
 > [lib.nvim](https://github.com/WKDSteve/lib.nvim) — every place that uses
 > it falls back to a plain Neovim equivalent, `:checkhealth media` included.

@@ -82,7 +82,19 @@ end
 ---@return boolean ok
 ---@return string|nil err
 function M.deliver(path, transcript, mode)
-  if mode == "sidecar" then return require("media.output.sidecar").write(path, transcript) end
+  if mode == "sidecar" then
+    local ok, err = require("media.output.sidecar").write(path, transcript)
+    -- Whoever shows files learns that this one has a transcript now (the badge of
+    -- `media.integrations.tree`), without looking for it.
+    if ok then
+      pcall(vim.api.nvim_exec_autocmds, "User", {
+        pattern = "MediaTranscriptWritten",
+        modeline = false,
+        data = { path = path },
+      })
+    end
+    return ok, err
+  end
 
   local subtitle = mode and SUBTITLES[mode] or nil
   if subtitle then

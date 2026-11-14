@@ -16,6 +16,7 @@
 ---@field cache Media.Config.Cache
 ---@field render_concurrency integer
 ---@field hub Media.Config.Hub
+---@field tree boolean|Media.Opts.Tree
 ---@field progress_style Media.Config.ProgressStyle
 ---@field player string|string[]|nil
 ---@field window Media.Config.Window
@@ -104,6 +105,10 @@
 ---@field exclude? string[]
 ---@field max_entries? integer
 
+---@class Media.Opts.Tree
+---@field badge? string     # the text of the `transcript` badge (default "transcript")
+---@field preview? boolean  # `false`: no still as the preview of a media node
+
 ---@class Media.Config.Cache
 ---@field enabled boolean
 ---@field dir string|nil
@@ -143,6 +148,7 @@
 ---@field cache? Media.Opts.Cache
 ---@field render_concurrency? integer
 ---@field hub? Media.Opts.Hub
+---@field tree? boolean|Media.Opts.Tree  # the badge and the preview in a tree view; `false` registers neither
 ---@field progress_style? Media.Config.ProgressStyle
 ---@field player? string|string[]
 ---@field window? Media.Opts.Window

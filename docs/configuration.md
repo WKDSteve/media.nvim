@@ -206,6 +206,34 @@ stop**, not an error — what was found before it is still the right answer to
 show, and a dashboard refusing to draw because a directory was large would be
 the worse failure. Same number and same reasoning as `images.browse`'s own cap.
 
+## `tree`
+
+What media.nvim adds to a tree view: the own tree of
+[filetree.nvim](https://github.com/WKDSteve/filetree.nvim), through the
+registry of lib.nvim (`lib.nvim.tree.registry`). Without such a tree the
+entries are never read and nothing runs.
+
+| Value | Effect |
+| --- | --- |
+| `true` (default) | the badge `transcript` and the preview of media files |
+| `{ badge = "txt" }` | another text for the badge |
+| `{ preview = false }` | the badge alone |
+| `false` | neither |
+
+**The badge** stands next to every video or audio file that has a
+`<file>.transcript.md` beside it, in another colour when the file changed
+after the transcript was written. The working directory is searched for
+transcripts in the background, in short slices, and only while a tree shows
+the badges; a file operation of the tree or a `:cd` starts the search again,
+and a transcript media.nvim itself writes shows up without one. The folders of
+`hub.exclude` are skipped and `hub.max_entries` bounds the search. The home
+folder and the top of a drive are not searched.
+
+**The preview** of a video node is one still (the one `frame` describes), of
+an audio node its waveform (`waveform`). It is rendered in the background and
+shown by whatever draws pictures for the tree; no player is started. Without
+ffmpeg the preview says so in one line.
+
 ## `progress_style`
 
 | Key | Type | Default |

@@ -231,6 +231,7 @@ Rebind or disable individually through `keymaps` — see
       },
       cache = { enabled = true, dir = nil },
       render_concurrency = 4,
+      tree = true,  -- true | { badge = "txt", preview = false } | false
       progress_style = "auto",  -- auto|notify|statusline|fidget|float|kit
       player = nil,
       keymaps = {
@@ -248,6 +249,12 @@ bin.mpv, bin.whisper       on PATH. Honoured even when it does not exist, so
                            the error names your own setting. mpv is optional
                            -- only |media.audio()| uses it, and its absence
                            just means a played run stays silent.
+
+tree                       In a tree view (the own tree of filetree.nvim): a
+                           badge on media files that have a .transcript.md,
+                           and a still or the waveform as their preview.
+                           The working directory is searched in the
+                           background, only while a tree shows the badges.
 
 timeout_ms                 Ceiling on one ffprobe or poster-frame run.
                            ffmpeg reading a stalled network mount does not

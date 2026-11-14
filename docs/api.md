@@ -134,3 +134,35 @@ dropping empty segments, repairing a zero-length one without discarding its
 text, and collapsing a blank line that would otherwise end the cue — is
 `require("media.core.segments").cues(segments)`, and both serialisers read it
 so the two formats cannot disagree about what a transcript says.
+
+### In a tree view
+
+`require("media.integrations.tree")` is what the [`tree`](configuration.md#tree)
+option switches: `register(opts)` puts a decorator `transcript` and a previewer
+`media` at `lib.nvim.tree.registry`, `unregister()` takes them out. Its parts
+are usable on their own:
+
+```lua
+local tree = require("media.integrations.tree")
+
+tree.previews(node)        -- is this a node media.nvim has a picture for (by extension)
+local cancel = tree.preview(node, nil, function(result)
+  -- result.image: a PNG on disk (a still, or the waveform of an audio file)
+  -- result.title: one line about the file, when it is known
+  -- result.note:  one line instead of a picture ("ffmpeg not found ...")
+end)
+
+tree.rescan()              -- look for transcripts again, in the background
+tree.refresh(path)         -- look at one media file again
+```
+
+`preview` returns at once and starts no player; `cancel()` drops the answer.
+
+Which media files below a folder have a transcript is
+`require("media.hub.transcripts")`: `scan(root, on_done)` in the background
+(the returned function cancels it), `scan_sync(root)` in one go, and
+`status(path)` for one file (`"ok"`, `"stale"` or `nil`). A scan answers
+`{ root, transcripts = { [path] = "ok" | "stale" }, partial, entries }`.
+
+After media.nvim wrote a sidecar it fires `User MediaTranscriptWritten` with
+`data = { path = <the media file> }`.

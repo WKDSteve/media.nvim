@@ -60,6 +60,17 @@ function M.setup(opts)
   require("media.bindings").setup()
   require("media.engines").load_all()
   require("media.core.cache").prune_once()
+
+  -- A badge on transcribed files and a still as the preview, in a tree view: two entries at
+  -- lib.nvim's registry, read by filetree.nvim's own tree when there is one. Registering scans
+  -- and renders nothing; `tree = false` leaves both out.
+  local tree = require("media.config").get().tree
+  local integration = require("media.integrations.tree")
+  if tree == false then
+    integration.unregister()
+  else
+    integration.register(type(tree) == "table" and tree or nil)
+  end
 end
 
 --- Whether this plugin can do anything at all right now: both binaries found.
