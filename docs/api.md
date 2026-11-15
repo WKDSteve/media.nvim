@@ -153,9 +153,10 @@ so the two formats cannot disagree about what a transcript says.
 ### In a tree view
 
 `require("media.integrations.tree")` is what the [`tree`](configuration.md#tree)
-option switches: `register(opts)` puts a decorator `transcript` and a previewer
-`media` at `lib.nvim.tree.registry`, `unregister()` takes them out. Its parts
-are usable on their own:
+option switches: `register(opts)` puts a decorator `transcript`, a previewer
+`media` and the actions `media.transcribe`, `media.play` and `media.sheet` at
+`lib.nvim.tree.registry`, `unregister()` takes them out. Its parts are usable
+on their own:
 
 ```lua
 local tree = require("media.integrations.tree")
@@ -167,6 +168,11 @@ local cancel = tree.preview(node, ctx, function(result)
   -- result.title: one line about the file, when it is known
   -- result.note:  one line instead of a picture ("ffmpeg not found ...")
 end)
+
+tree.transcribe(paths)     -- one path or a list: each into its sidecar, one after another;
+                           -- false when nothing was started (no engine, no media file)
+tree.play(path)            -- what `:Media play <path>` does
+tree.sheet(path)           -- what `:Media sheet <path>` does; false without ffmpeg
 
 tree.rescan()              -- look for transcripts again below every root, in the background
 tree.sync()                -- only below a root that is new; forget one no tree shows any more

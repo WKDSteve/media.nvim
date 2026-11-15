@@ -108,6 +108,15 @@
 ---@class Media.Opts.Tree
 ---@field badge? string     # the text of the `transcript` badge (default "transcript")
 ---@field preview? boolean  # `false`: no still as the preview of a media node
+---@field actions? boolean  # `false`: no actions on a media node
+---@field keys? Media.Opts.Tree.Keys  # a key in the tree buffer per action (default: none, the actions are in the menu)
+
+---@alias Media.Opts.Tree.Key string|string[]|false
+
+---@class Media.Opts.Tree.Keys
+---@field transcribe? Media.Opts.Tree.Key  # transcribe into the sidecar; with several nodes marked, every media file among them
+---@field play? Media.Opts.Tree.Key        # hand the file to a player
+---@field sheet? Media.Opts.Tree.Key       # the contact sheet of a video
 
 ---@class Media.Config.Cache
 ---@field enabled boolean

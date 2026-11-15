@@ -252,7 +252,9 @@ bin.mpv, bin.whisper       on PATH. Honoured even when it does not exist, so
 
 tree                       In a tree view (the own tree of filetree.nvim): a
                            badge on media files that have a .transcript.md,
-                           and a still or the waveform as their preview.
+                           a still or the waveform as their preview, and
+                           the actions transcribe, play and contact sheet
+                           (tree.keys puts them on keys).
                            The folders the tree shows are searched in the
                            background, only while a tree shows the badges.
 

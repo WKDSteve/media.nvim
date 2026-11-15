@@ -56,6 +56,10 @@ return function(H)
   local probe = require("media.core.probe")
   local play = require("media.core.play")
   local player = require("media.core.player")
+  local text = require("media.hub.text")
+  local sheet = require("media.core.sheet")
+  local ui = require("media.ui")
+  local notify = require("media.util.notify")
   local real = {
     find = bin.find,
     frame = frame.frame,
@@ -68,6 +72,13 @@ return function(H)
     scan = transcripts.scan,
     scan_sync = transcripts.scan_sync,
     previewer = registry.previewer,
+    action = registry.action,
+    notify = notify.notify,
+    text_tool = text.tool,
+    text_run = text.run,
+    text_deliver = text.deliver,
+    sheet = sheet.sheet,
+    show_image = ui.show_image,
   }
 
   local ok, err = pcall(function()
@@ -658,8 +669,170 @@ return function(H)
     H.eq(tree.register(), true, "a registry without previewers still takes the decorator")
     H.ok(registry.get("decorator", "transcript"))
     tree.unregister()
+
+    -- ── the actions on a media node ─────────────────────────────────────────
+    -- Stand-ins for everything that works: the text pipeline (the engines behind it), the player,
+    -- the renderer of the contact sheet and what shows its picture.
+    local said, ran, delivered, handed, sheets, pictures = {}, {}, {}, {}, {}, {}
+    ---@type Media.Hub.Tool
+    local engine = { ok = true, tool = "whisper_cpp" }
+    ---@type string|nil
+    local player_error = nil
+    notify.notify = function(message, level)
+      said[#said + 1] = { text = tostring(message), level = level }
+    end
+    text.tool = function()
+      return engine
+    end
+    text.run = function(path, _, callback)
+      ran[#ran + 1] = path
+      vim.schedule(function()
+        callback({ text = "Hello" }, nil)
+      end)
+    end
+    text.deliver = function(path, _, mode)
+      delivered[#delivered + 1] = mode .. " " .. path
+      return true
+    end
+    play.play = function(path)
+      if player_error then return false, player_error end
+      handed[#handed + 1] = path
+      return true
+    end
+    sheet.sheet = function(path, _, callback)
+      sheets[#sheets + 1] = path
+      vim.schedule(function()
+        callback("/cache/sheet.png", nil)
+      end)
+    end
+    ui.show_image = function(png)
+      pictures[#pictures + 1] = png
+    end
+    ---The last thing said at `level`, or nil.
+    ---@param level integer
+    ---@return string|nil
+    local function last_said(level)
+      for i = #said, 1, -1 do
+        if said[i].level == level then return said[i].text end
+      end
+      return nil
+    end
+
+    H.eq(tree.register({ keys = { transcribe = "gt", sheet = false } }), true)
+    local transcribe = registry.get("action", "media.transcribe")
+    local playing = registry.get("action", "media.play")
+    local sheeting = registry.get("action", "media.sheet")
+    H.ok(transcribe and playing and sheeting, "three actions are at lib.nvim's registry")
+    H.eq(transcribe.key, "gt", "a key where one is configured")
+    H.eq(playing.key, nil, "and none where none is")
+    H.eq(sheeting.key, nil, "false is no key")
+    H.eq(table.concat(transcribe.needs, ","), "file")
+    H.eq(transcribe.mutates, true, "a transcript is a file that gets written")
+    H.eq(playing.mutates, false)
+    H.eq(sheeting.mutates, false)
+    H.eq(transcribe.when({ path = "/v/talk.mp4" }), true)
+    H.eq(transcribe.when({ path = "/v/song.mp3" }), true)
+    H.eq(transcribe.when({ path = "/v/notes.txt" }), false, "by extension")
+    H.eq(playing.when({ path = "/v/song.mp3" }), true)
+    H.eq(sheeting.when({ path = "/v/talk.mp4" }), true)
+    H.eq(sheeting.when({ path = "/v/song.mp3" }), false, "a contact sheet needs a picture")
+
+    -- transcribe: every media file of the selection, each once, into the sidecar
+    transcribe.run({
+      { path = "/v/talk.mp4" },
+      { path = "/v/notes.txt" },
+      { path = "/v/song.mp3" },
+      { path = "/v/talk.mp4" },
+      { path = "/v/folder.mp4", kind = "dir" },
+    })
+    H.ok(
+      vim.wait(3000, function()
+        return #delivered == 2
+      end, 5),
+      "the batch ends"
+    )
+    vim.wait(30)
+    H.eq(table.concat(ran, "\n"), "/v/talk.mp4\n/v/song.mp3", "one run per media file, in order")
+    H.eq(table.concat(delivered, "\n"), "sidecar /v/talk.mp4\nsidecar /v/song.mp3")
+
+    -- without an engine: the reason and the fix, as the dashboard says them, and no run
+    engine = {
+      ok = false,
+      tool = "whisper.cpp",
+      reason = "no engine is installed",
+      fix = "see :checkhealth media",
+    }
+    said = {}
+    transcribe.run({ { path = "/v/talk.mp4" } })
+    vim.wait(60)
+    H.eq(#ran, 2, "nothing is started")
+    H.eq(last_said(vim.log.levels.WARN), "no engine is installed — see :checkhealth media")
+    H.eq(tree.transcribe("/v/talk.mp4"), false)
+    engine = { ok = true, tool = "whisper_cpp" }
+    H.eq(tree.transcribe({}), false, "nothing to transcribe")
+    H.eq(tree.transcribe("/v/notes.txt"), false, "no media file")
+    H.eq(#ran, 2)
+
+    -- play: no batch; the first of a selection, and the person is told
+    said = {}
+    playing.run({ { path = "/v/talk.mp4" } })
+    H.eq(table.concat(handed, "\n"), "/v/talk.mp4")
+    H.eq(#said, 0, "one node, nothing to say")
+    playing.run({ { path = "/v/notes.txt" }, { path = "/v/song.mp3" }, { path = "/v/talk.mp4" } })
+    H.eq(handed[#handed], "/v/song.mp3", "the first media file of the selection")
+    H.eq(#handed, 2)
+    H.match(last_said(vim.log.levels.WARN), "^2 files are marked; playing the first only")
+    player_error = "configured player not found: vlc"
+    playing.run({ { path = "/v/talk.mp4" } })
+    H.eq(#handed, 2)
+    H.eq(
+      last_said(vim.log.levels.ERROR),
+      "configured player not found: vlc",
+      "which player is missing"
+    )
+    player_error = nil
+
+    -- the contact sheet: of the first video
+    sheeting.run({ { path = "/v/song.mp3" }, { path = "/v/talk.mp4" } })
+    H.ok(
+      vim.wait(2000, function()
+        return #pictures == 1
+      end, 5),
+      "the sheet is rendered and shown"
+    )
+    H.eq(table.concat(sheets, "\n"), "/v/talk.mp4")
+    H.eq(pictures[1], "/cache/sheet.png")
+    has_ffmpeg = false
+    said = {}
+    sheeting.run({ { path = "/v/talk.mp4" } })
+    vim.wait(30)
+    H.eq(#sheets, 1, "without ffmpeg nothing is started")
+    H.match(last_said(vim.log.levels.WARN), "^ffmpeg not found", "and one line names the program")
+    has_ffmpeg = true
+    H.eq(spawned, 0, "no process was started for any of it")
+
+    tree.unregister()
+    H.eq(registry.get("action", "media.play"), nil, "unregister() takes the actions out")
+    tree.register({ actions = false })
+    H.eq(registry.get("action", "media.transcribe"), nil, "actions = false: none")
+    H.ok(registry.get("decorator", "transcript"))
+    tree.unregister()
+    registry.action = nil
+    H.eq(tree.register(), true, "a registry without actions still takes the decorator")
+    tree.unregister()
+    registry.action = real.action
+
+    _, problems = config.validate({ tree = { actions = "no", keys = { play = 3, sheet = false } } })
+    H.eq(#problems, 2, "the options of the actions are typed")
   end)
 
+  notify.notify = real.notify
+  text.tool = real.text_tool
+  text.run = real.text_run
+  text.deliver = real.text_deliver
+  sheet.sheet = real.sheet
+  ui.show_image = real.show_image
+  registry.action = real.action
   bin.find = real.find
   frame.frame = real.frame
   waveform.waveform = real.waveform

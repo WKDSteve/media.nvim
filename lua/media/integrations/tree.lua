@@ -1,7 +1,7 @@
 ---@module 'media.integrations.tree'
 ---@brief In a tree view: a badge on media files that have a transcript, and a still as their preview.
 ---@description
---- Two entries at `lib.nvim.tree.registry`, read by a tree that knows the
+--- Entries at `lib.nvim.tree.registry`, read by a tree that knows the
 --- registry (the own tree of filetree.nvim):
 ---
 --- **The decorator `transcript`.** A badge next to a video or audio file whose
@@ -39,15 +39,31 @@
 --- (`ctx.trigger == "cursor"`) nothing is rendered: the answer is what ffprobe
 --- says about the file, as lines.
 ---
+--- **Three actions** on a media node, in the menu of the tree and on a key where
+--- one is configured (`tree.keys`):
+---
+---   media.transcribe  the dashboard's "Transcribe → sidecar"; with several
+---                     nodes marked every media file among them, one after
+---                     another under one progress handle
+---   media.play        `:Media play <node>`
+---   media.sheet       `:Media sheet <node>`, on a video
+---
+--- Playing and the contact sheet are no batch: with several nodes marked they
+--- run on the first and say so. An action whose tool is missing (no engine, no
+--- ffmpeg) says which one and starts nothing.
+---
 --- Soft in both directions. The registry is lib.nvim's: without a tree that reads
 --- it the entries are never looked at, without a lib.nvim that has the registry
---- nothing is registered, and a registry without previewers gets the decorator
---- alone.
+--- nothing is registered, and a registry without previewers or actions gets what
+--- it takes.
 
 local M = {}
 
 M.NAME = "transcript"
 M.PREVIEWER = "media"
+M.TRANSCRIBE = "media.transcribe"
+M.PLAY = "media.play"
+M.SHEET = "media.sheet"
 
 ---How long after the last change a scan starts, in milliseconds.
 M.DEBOUNCE_MS = 400
@@ -76,6 +92,8 @@ local AUGROUP = "media.tree.transcripts"
 local unregister_decorator = nil
 ---@type fun()|nil
 local unregister_previewer = nil
+---@type (fun())[]
+local unregister_actions = {}
 ---@type table<string, table>  path -> badge
 local badges = {}
 ---@type table<integer, Media.Tree.Listener>
@@ -483,11 +501,173 @@ function M.preview(node, ctx, done)
   return cancel
 end
 
+-- ── the actions ──────────────────────────────────────────────────────────────
+
+---@param message string
+---@param level? integer
+local function say(message, level)
+  require("media.util.notify").notify(message, level)
+end
+
+---The files among `nodes` that `accepts` takes, each once and in the order of the nodes. A tree
+---checks an action against the node under the cursor and hands over the whole selection, so what
+---does not belong is left out here.
+---@param nodes table[]|nil
+---@param accepts fun(path: string): boolean
+---@return string[]
+local function files_of(nodes, accepts)
+  local out, seen = {}, {}
+  for _, node in ipairs(type(nodes) == "table" and nodes or {}) do
+    local path = type(node) == "table" and node.path or nil
+    if
+      type(path) == "string"
+      and path ~= ""
+      and node.kind ~= "dir"
+      and not seen[path]
+      and accepts(path)
+    then
+      seen[path] = true
+      out[#out + 1] = path
+    end
+  end
+  return out
+end
+
+---The one file an action that is no batch runs on: the first. Playing twelve recordings is twelve
+---players, so with several marked the person is told which one it is.
+---@param paths string[]
+---@param verb string  "playing" | "rendering the contact sheet of"
+---@return string|nil
+local function first_of(paths, verb)
+  if #paths > 1 then
+    say(
+      ("%d files are marked; %s the first only: %s"):format(#paths, verb, paths[1]),
+      vim.log.levels.WARN
+    )
+  end
+  return paths[1]
+end
+
+---Transcribe media files, each into the sidecar next to it (`<file>.transcript.md`), one after
+---another under one progress handle. It is the dashboard's "Transcribe → sidecar" with the files
+---chosen in the tree: without an engine nothing starts, and the reason is said the way the
+---dashboard says it. The badge of each file follows through `User MediaTranscriptWritten`.
+---@param paths string|string[]
+---@return boolean started
+function M.transcribe(paths)
+  if type(paths) == "string" then paths = { paths } end
+  local kinds = require("media.hub.kinds")
+  local formats = require("media.formats")
+  ---@type Media.Hub.Entry[]
+  local entries = {}
+  for _, path in ipairs(type(paths) == "table" and paths or {}) do
+    if type(path) == "string" and formats.is_media(path) then
+      entries[#entries + 1] = {
+        path = path,
+        name = vim.fn.fnamemodify(path, ":t"),
+        kind = kinds.of(path),
+        status = "missing",
+      }
+    end
+  end
+  if #entries == 0 then return false end
+
+  local actions = require("media.hub.actions")
+  ---@type Media.Hub.Action|nil
+  local action
+  -- audio and video share one table
+  for _, candidate in ipairs(actions.list("audio")) do
+    if candidate.id == "transcribe_sidecar" then action = candidate end
+  end
+  if not action or not actions.batchable(action) then return false end
+  -- the worst answer counts: twelve files are not ready because the first one is
+  ---@type Media.Hub.Tool
+  local tool = { ok = true, tool = "" }
+  for _, entry in ipairs(entries) do
+    local one = actions.availability(action, entry.kind)
+    if not one.ok then
+      tool = one
+      break
+    end
+  end
+  require("media.hub.dashboard").pick(entries, action, tool, nil)
+  return tool.ok == true
+end
+
+---Hand a media file to a player: what `:Media play <path>` does.
+---@param path string
+function M.play(path)
+  require("media.bindings.usrcmds").run("play", path)
+end
+
+---Show the contact sheet of a video: what `:Media sheet <path>` does. Without ffmpeg nothing is
+---started and one line says what is missing.
+---@param path string
+---@return boolean started
+function M.sheet(path)
+  if not require("media.core.bin").find("ffmpeg") then
+    say("ffmpeg not found (install it, or set `bin.ffmpeg`)", vim.log.levels.WARN)
+    return false
+  end
+  require("media.bindings.usrcmds").run("sheet", path)
+  return true
+end
+
+---What the tree is told about the three actions: the name, the line a menu shows, where it applies
+---and what it does with the selection.
+---@return table[]
+local function action_specs()
+  local formats = require("media.formats")
+  ---@param node { path?: string }
+  local function on_media(node)
+    return formats.is_media(node.path)
+  end
+  ---@param node { path?: string }
+  local function on_video(node)
+    return formats.is_video(node.path)
+  end
+  return {
+    {
+      id = "transcribe",
+      name = M.TRANSCRIBE,
+      desc = "Transcribe this recording into a file next to it (media.nvim)",
+      when = on_media,
+      -- writes `<file>.transcript.md`
+      mutates = true,
+      run = function(nodes)
+        M.transcribe(files_of(nodes, formats.is_media))
+      end,
+    },
+    {
+      id = "play",
+      name = M.PLAY,
+      desc = "Play this recording in a player (media.nvim)",
+      when = on_media,
+      mutates = false,
+      run = function(nodes)
+        local path = first_of(files_of(nodes, formats.is_media), "playing")
+        if path then M.play(path) end
+      end,
+    },
+    {
+      id = "sheet",
+      name = M.SHEET,
+      desc = "Show the contact sheet of this video (media.nvim)",
+      when = on_video,
+      mutates = false,
+      run = function(nodes)
+        local path = first_of(files_of(nodes, formats.is_video), "rendering the contact sheet of")
+        if path then M.sheet(path) end
+      end,
+    },
+  }
+end
+
 -- ── registering ──────────────────────────────────────────────────────────────
 
----Register the decorator and, where the registry takes one, the previewer. Without
+---Register the decorator and, where the registry takes them, the previewer and the actions. Without
 ---`lib.nvim.tree.registry` (an older lib.nvim) nothing happens.
----@param opts? Media.Opts.Tree  `badge`: the text of the badge; `preview = false`: the decorator alone.
+---@param opts? Media.Opts.Tree  `badge`: the text of the badge; `preview = false`: no previewer; `actions = false`: no actions; `keys`: a key per action.
 ---@return boolean registered
 function M.register(opts)
   local ok, registry = pcall(require, "lib.nvim.tree.registry")
@@ -533,11 +713,31 @@ function M.register(opts)
       preview = M.preview,
     })
   end
+  if opts.actions ~= false and type(registry.action) == "function" then
+    local keys = type(opts.keys) == "table" and opts.keys or {}
+    for _, spec in ipairs(action_specs()) do
+      local key = keys[spec.id]
+      unregister_actions[#unregister_actions + 1] = registry.action({
+        name = spec.name,
+        desc = spec.desc,
+        -- a key only where one is configured: the actions are in the menu of the tree
+        key = (type(key) == "string" or type(key) == "table") and key or nil,
+        needs = { "file" },
+        when = spec.when,
+        mutates = spec.mutates,
+        run = spec.run,
+      })
+    end
+  end
   return true
 end
 
----Take both entries out again and stop everything behind them.
+---Take the entries out again and stop everything behind them.
 function M.unregister()
+  for _, remove in ipairs(unregister_actions) do
+    remove()
+  end
+  unregister_actions = {}
   if unregister_decorator then
     unregister_decorator()
     unregister_decorator = nil

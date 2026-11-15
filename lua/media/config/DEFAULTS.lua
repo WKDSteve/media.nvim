@@ -353,11 +353,15 @@ return {
 
   --- In a tree view (the own tree of filetree.nvim, through
   --- `lib.nvim.tree.registry`; `media.integrations.tree`): a badge on every
-  --- video or audio file that has a `.transcript.md` next to it, and a still
-  --- (video) or the waveform (audio) as the preview of such a node.
+  --- video or audio file that has a `.transcript.md` next to it, a still
+  --- (video) or the waveform (audio) as the preview of such a node, and three
+  --- actions on it: transcribe, play, contact sheet.
   ---
-  --- `true`, `false` (neither), or a table: `{ badge = "<text>" }` for another
-  --- badge text, `{ preview = false }` for the badge alone.
+  --- `true`, `false` (none of it), or a table: `{ badge = "<text>" }` for
+  --- another badge text, `{ preview = false }` and `{ actions = false }` to
+  --- leave one out, `{ keys = { transcribe = "gt", play = "gp", sheet = "gs" } }`
+  --- to put an action on a key in the tree buffer (none by default: the actions
+  --- are in the menu of the tree).
   ---
   --- The roots the tree shows are scanned in the background, and only while a tree
   --- shows the badges; the still is rendered when the preview asks for it.

@@ -1,5 +1,6 @@
 -- TESTS/tree_drive.lua -- media.nvim in the real own tree of filetree.nvim: the transcript badge next to
--- a media file, and what the preview key of the tree shows on a video and an audio node.
+-- a media file, what the preview key of the tree shows on a video and an audio node, the actions on a
+-- media node by their keys, and the scan that follows the root of the tree.
 --
 -- Not a spec of the suite (no `_spec` in the name): filetree.nvim is no dependency of media.nvim, and the
 -- state of a sibling checkout must not decide about this suite. A hand run, on filetree.nvim's bench
@@ -64,7 +65,10 @@ local T = dofile(filetree .. "/TESTS/native_drive.lua")({
         return true
       end,
     }
-    require("media").setup({ keymaps = false })
+    require("media").setup({
+      keymaps = false,
+      tree = { keys = { transcribe = "gmt", play = "gmp", sheet = "gms" } },
+    })
     require("media.core.bin").find = function(name)
       if name == "ffmpeg" and not has_ffmpeg then return nil end
       return name
@@ -249,6 +253,132 @@ end, calls)
 T.eq("and no player", #players, 0)
 
 vim.system = real_system
+
+-- ── the actions on a media node ──────────────────────────────────────────────
+-- The keys are the ones this run configured (`tree.keys`). Stand-ins for the player, the renderer of
+-- the contact sheet and the engines; the sidecar is written by media.nvim itself, so the badge that
+-- follows is the real one.
+if type(require("lib.nvim.tree.registry").action) ~= "function" then
+  T.na("this lib.nvim has no actions at its registry: the actions of media.nvim are not there")
+else
+  local text = require("media.hub.text")
+  ---@type table
+  local engine = { ok = true, tool = "stand-in" }
+  require("media.core.play").play = function(path)
+    calls[#calls + 1] = "play " .. T.norm(path)
+    return true
+  end
+  require("media.core.sheet").sheet = function(path, _, callback)
+    calls[#calls + 1] = "sheet " .. T.norm(path)
+    vim.schedule(function()
+      callback("/cache/sheet.png", nil)
+    end)
+  end
+  text.tool = function()
+    return engine
+  end
+  text.run = function(path, _, callback)
+    calls[#calls + 1] = "transcribe " .. T.norm(path)
+    vim.schedule(function()
+      callback({
+        kind = "video",
+        text = "Hello",
+        tool = "stand-in",
+        transcript = {
+          engine = "whisper_cpp",
+          lang = "en",
+          segments = { { s = 0, e = 1, text = "Hello" } },
+          text = "Hello",
+        },
+      }, nil)
+    end)
+  end
+
+  -- no preview that follows the cursor from here on: it would ask for the record of every node
+  require("filetree.features.ui.preview").close()
+  T.close_floats()
+  from = #calls + 1
+  T.on("talks/standup.mp4")
+  T.eq("the video has no transcript yet", T.drawn("talks/standup.mp4").text, "")
+  T.feed("gmp")
+  T.wait(function()
+    return #calls >= from
+  end)
+  T.eq("the play key hands the video to the player", called(from), { "play talks/standup.mp4" })
+
+  from = #calls + 1
+  T.feed("gms")
+  T.wait(function()
+    return #calls >= from + 1
+  end)
+  T.eq(
+    "the sheet key renders the contact sheet and shows it",
+    called(from),
+    { "sheet talks/standup.mp4", "show /cache/sheet.png" }
+  )
+  T.close_floats()
+
+  from = #calls + 1
+  T.on("talks/standup.mp4")
+  T.feed("gmt")
+  T.ok(
+    "the transcribe key writes the transcript next to the video",
+    T.wait(function()
+      return T.exists("talks/standup.mp4.transcript.md")
+    end, 5000)
+  )
+  T.eq("... with one run of the engine", called(from), { "transcribe talks/standup.mp4" })
+  T.ok(
+    "... and the badge follows",
+    T.wait(function()
+      return T.drawn("talks/standup.mp4").text:find("transcript", 1, true) ~= nil
+    end, 5000)
+  )
+
+  -- an audio file has no contact sheet: the key is not media.nvim's there
+  from = #calls + 1
+  T.on("audio/jingle.mp3")
+  T.feed("gms")
+  T.settle(200)
+  T.eq("the sheet key on an audio file renders nothing", called(from), {})
+  T.feed("gmp")
+  T.wait(function()
+    return #calls >= from
+  end)
+  T.eq("... the play key plays it", called(from), { "play audio/jingle.mp3" })
+
+  -- a file that is no media file
+  from = #calls + 1
+  T.on("README.md")
+  T.feed("gmp")
+  T.feed("gmt")
+  T.settle(200)
+  T.eq("on another file none of the keys reaches media.nvim", called(from), {})
+
+  -- without an engine: the reason, and no run
+  engine =
+    { ok = false, tool = "whisper.cpp", reason = "no engine is installed", fix = "install one" }
+  from = #calls + 1
+  -- media.nvim speaks through lib.nvim's toasts, which the bench does not read
+  local said = {}
+  local notifier = require("media.util.notify")
+  local real_notify = notifier.notify
+  notifier.notify = function(message, ...)
+    said[#said + 1] = tostring(message)
+    return real_notify(message, ...)
+  end
+  T.on("talks/retro.mp4")
+  T.feed("gmt")
+  T.ok(
+    "without an engine the transcribe key says what is missing",
+    T.wait(function()
+      return table.concat(said, " "):find("no engine is installed", 1, true) ~= nil
+    end, 3000)
+  )
+  T.eq("... and starts nothing", called(from), {})
+  notifier.notify = real_notify
+  T.close_floats()
+end
 
 -- ── the scan follows the root of the tree ────────────────────────────────────
 local native = require("filetree.native")

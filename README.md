@@ -58,8 +58,9 @@ when there is none it opens the dashboard.
 > in it, in the video's own aspect ratio.
 >
 > **[filetree.nvim](https://github.com/WKDSteve/filetree.nvim)** — its own
-> tree shows a badge on every video or audio file that has a transcript, and a
-> still or the waveform as the preview of such a file
+> tree shows a badge on every video or audio file that has a transcript, a
+> still or the waveform as the preview of such a file, and can transcribe it,
+> play it or show its contact sheet from the node
 > ([`tree`](docs/configuration.md#tree)).
 >
 > All of the above are soft, and so is

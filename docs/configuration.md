@@ -215,10 +215,12 @@ entries are never read and nothing runs.
 
 | Value | Effect |
 | --- | --- |
-| `true` (default) | the badge `transcript` and the preview of media files |
+| `true` (default) | the badge `transcript`, the preview of media files and the actions on them |
 | `{ badge = "txt" }` | another text for the badge |
-| `{ preview = false }` | the badge alone |
-| `false` | neither |
+| `{ preview = false }` | no preview |
+| `{ actions = false }` | no actions |
+| `{ keys = { transcribe = "gt", play = "gp", sheet = "gs" } }` | a key in the tree buffer per action (default: none) |
+| `false` | none of it |
 
 **The badge** stands next to every video or audio file that has a
 `<file>.transcript.md` beside it, in another colour when the file changed
@@ -239,6 +241,18 @@ ffmpeg the preview says so in one line. While the preview follows the cursor
 from node to node it shows what ffprobe says about the file (duration, codecs,
 resolution) and renders nothing; the preview key on the node brings the
 picture.
+
+**The actions** are in the menu and the action list of the tree, on every
+video or audio node, and on a key where `keys` names one:
+
+| Action | Does | With several nodes marked |
+| --- | --- | --- |
+| `media.transcribe` | writes `<file>.transcript.md` next to the file (the dashboard's "Transcribe → sidecar"); the badge follows | every media file among them, one after another under one progress indicator |
+| `media.play` | `:Media play` on the node | the first, and says so |
+| `media.sheet` | `:Media sheet` on a video node | the first video, and says so |
+
+An action whose tool is missing (no transcription engine, no ffmpeg, a
+configured player that is not there) says which one and starts nothing.
 
 ## `progress_style`
 
