@@ -7,13 +7,23 @@
 --- **The decorator `transcript`.** A badge next to a video or audio file whose
 --- sidecar `<file>.transcript.md` exists; another highlight when the file
 --- changed after the sidecar was written. Its `get` is a table lookup. The table
---- is filled by a scan of the working directory that runs in the background
---- (`media.hub.transcripts`), and only while a tree listens:
----  - when the first tree subscribes
----  - after a file operation of a tree (`User FiletreeChanged`,
----    `User FileopsChanged`) and after `:cd` (`DirChanged`), a moment later and
----    once for however many of them came together
+--- is filled by scans that run in the background (`media.hub.transcripts`), one
+--- per root a listening tree shows, and only while a tree listens:
+---  - a root is scanned when a tree first shows it: the tree says which roots
+---    there are (`ctx.roots()`, the second argument of `subscribe`) and when
+---    they change (`User FiletreeRoots`). The other roots are left alone then,
+---    and what was found below a root no tree shows any more is forgotten
+---  - every root again after a file operation of a tree (`User FiletreeChanged`,
+---    `User FileopsChanged`), a moment later and once for however many of them
+---    came together
 ---  - on demand: `require("media.integrations.tree").rescan()`
+---
+--- A tree that hands no context (a filetree.nvim before `FiletreeRoots`) stands
+--- for the working directory, scanned again after `:cd` (`DirChanged`).
+---
+--- The badges are keyed by the path below the root in the spelling the tree
+--- names it: a root behind a link is scanned through the link, as the tree
+--- shows it.
 ---
 --- A transcript media.nvim itself wrote (`User MediaTranscriptWritten`) costs no
 --- scan: that one file is looked at.
@@ -51,17 +61,30 @@ M.DEBOUNCE_MS = 400
 
 local AUGROUP = "media.tree.transcripts"
 
+---One tree that listens: what it wants to be told, and where it says which roots the trees show.
+---@class Media.Tree.Listener
+---@field emit fun(keys?: string[])
+---@field ctx? { roots?: fun(): string[] }  What `subscribe` was handed next to `emit`; nil with a tree that hands none.
+
+---The scan of one root.
+---@class Media.Tree.Scan
+---@field cancel? fun()  Set while the scan runs.
+---@field token? table  Names the run whose answer is waited for.
+---@field result? Media.Hub.Transcripts.Result  What the last finished scan of this root found.
+
 ---@type fun()|nil
 local unregister_decorator = nil
 ---@type fun()|nil
 local unregister_previewer = nil
 ---@type table<string, table>  path -> badge
 local badges = {}
----@type table<integer, fun(keys?: string[])>
+---@type table<integer, Media.Tree.Listener>
 local listeners = {}
 local next_listener = 0
----@type fun()|nil  cancels the running scan
-local cancel_scan = nil
+---@type table<string, Media.Tree.Scan>  by root, in the spelling the tree named it
+local scans = {}
+---@type table<string, Media.Hub.Transcripts.Status>  files looked at one by one that no finished scan covers
+local loose = {}
 ---@type uv.uv_timer_t|nil
 local timer = nil
 local badge_text = "transcript"
@@ -81,21 +104,40 @@ end
 
 ---@param keys? string[]
 local function tell(keys)
-  for _, emit in pairs(listeners) do
-    pcall(emit, keys)
+  for _, listener in pairs(listeners) do
+    pcall(listener.emit, keys)
   end
 end
 
----Take the result of a scan: replace the table and name the keys that changed.
----@param result Media.Hub.Transcripts.Result
-local function adopt(result)
-  last = result
+---Whether `path` lies below `root` (both in the spelling of `norm`).
+---@param path string
+---@param root string
+---@return boolean
+local function below(path, root)
+  local prefix = root:sub(-1) == "/" and root or root .. "/"
+  return path:sub(1, #prefix) == prefix
+end
+
+---Put the table together again from what the scans found and what was looked at file by file, and
+---name the keys that changed.
+local function rebuild()
+  ---@type table<string, Media.Hub.Transcripts.Status>
+  local found = {}
+  for path, status in pairs(loose) do
+    found[path] = status
+  end
+  for _, scan in pairs(scans) do
+    for path, status in pairs(scan.result and scan.result.transcripts or {}) do
+      -- two roots, one below the other, both saw the file: "stale" is the one that says more
+      if found[path] ~= "stale" then found[path] = status end
+    end
+  end
   local changed = {}
   for path, old in pairs(badges) do
-    if result.transcripts[path] ~= old.status then changed[#changed + 1] = path end
+    if found[path] ~= old.status then changed[#changed + 1] = path end
   end
   local fresh = {}
-  for path, status in pairs(result.transcripts) do
+  for path, status in pairs(found) do
     if not badges[path] then changed[#changed + 1] = path end
     fresh[path] = badge(status)
   end
@@ -104,6 +146,22 @@ local function adopt(result)
     table.sort(changed)
     tell(changed)
   end
+end
+
+---Take the result of the scan of `root`.
+---@param root string
+---@param result Media.Hub.Transcripts.Result
+local function adopt(root, result)
+  local scan = scans[root]
+  if not scan then return end
+  scan.cancel = nil
+  scan.result = result
+  last = result
+  -- what was looked at file by file below this root is the scan's to say from now on
+  for path in pairs(loose) do
+    if below(path, root) then loose[path] = nil end
+  end
+  rebuild()
 end
 
 ---Whether `root` is no project but a place everything lies below: the home folder, or the top of a
@@ -118,26 +176,110 @@ function M.too_wide(root)
   return home ~= nil and norm(home):lower() == root:lower()
 end
 
----Scan the working directory again, in the background. Without a listening tree nothing happens
+---The folders to scan: the roots the listening trees show (`ctx.roots()`), each once and sorted. A
+---tree that hands no context (an older filetree.nvim) stands for the working directory, and so does
+---nobody listening at all (a caller that forces a scan).
+---@return string[] roots
+---@return boolean cwd  Whether the working directory is among them because somebody could not say.
+function M.roots()
+  local norm = require("media.hub.transcripts").norm
+  local seen, out = {}, {}
+  ---@param root any
+  local function add(root)
+    if type(root) ~= "string" or root == "" then return end
+    root = norm(root)
+    if seen[root] then return end
+    seen[root] = true
+    out[#out + 1] = root
+  end
+  local cwd = next(listeners) == nil
+  for _, listener in pairs(listeners) do
+    local ask = type(listener.ctx) == "table" and listener.ctx.roots or nil
+    local ok, roots = false, nil
+    if type(ask) == "function" then
+      ok, roots = pcall(ask)
+    end
+    if ok and type(roots) == "table" then
+      for _, root in ipairs(roots) do
+        add(root)
+      end
+    else
+      cwd = true
+    end
+  end
+  if cwd then add(vim.fn.getcwd()) end
+  table.sort(out)
+  return out, cwd
+end
+
+---Start the scan of `root`, in place of one that is still on its way there.
+---@param root string
+local function start(root)
+  local scan = scans[root] or {}
+  scans[root] = scan
+  if scan.cancel then scan.cancel() end
+  scan.cancel = nil
+  scan.token = nil
+  if M.too_wide(root) then
+    adopt(root, { root = root, transcripts = {}, partial = true, entries = 0 })
+    return
+  end
+  -- a stand-in may answer before it returns, and one that was replaced may answer all the same
+  local token = {}
+  scan.token = token
+  local cancel = require("media.hub.transcripts").scan(root, function(result)
+    if scans[root] ~= scan or scan.token ~= token then return end
+    scan.token = nil
+    adopt(root, result)
+  end)
+  if scan.token == token then scan.cancel = cancel end
+end
+
+---Give up the scans of roots no tree shows any more. Returns whether one went.
+---@param wanted string[]
+---@return boolean
+local function drop_unwanted(wanted)
+  local keep, dropped = {}, false
+  for _, root in ipairs(wanted) do
+    keep[root] = true
+  end
+  for root, scan in pairs(scans) do
+    if not keep[root] then
+      if scan.cancel then scan.cancel() end
+      scans[root] = nil
+      dropped = true
+    end
+  end
+  return dropped
+end
+
+---Scan every root again, in the background (see `roots`). Without a listening tree nothing happens
 ---unless `force` is set (a caller that wants the table for itself).
 ---@param force? boolean
 function M.rescan(force)
   if not force and next(listeners) == nil then return end
-  if cancel_scan then cancel_scan() end
-  cancel_scan = nil
-  local root = vim.fn.getcwd()
-  if M.too_wide(root) then
-    adopt({ root = root, transcripts = {}, partial = true, entries = 0 })
-    return
+  local wanted = M.roots()
+  local dropped = drop_unwanted(wanted)
+  for _, root in ipairs(wanted) do
+    start(root)
   end
-  cancel_scan = require("media.hub.transcripts").scan(root, function(result)
-    cancel_scan = nil
-    adopt(result)
-  end)
+  if dropped then rebuild() end
+end
+
+---Follow the roots of the trees: scan a root that is new, forget one that is gone, and leave the
+---others alone (`User FiletreeRoots`, and a tree that comes or goes).
+function M.sync()
+  if next(listeners) == nil then return end
+  local wanted = M.roots()
+  local dropped = drop_unwanted(wanted)
+  for _, root in ipairs(wanted) do
+    if not scans[root] then start(root) end
+  end
+  if dropped then rebuild() end
 end
 
 ---Look at one media file again (its transcript was written or removed), without a scan. A file
----outside what the last scan covered gets its badge all the same: the tree only asks for what it shows.
+---outside what the scans cover gets its badge all the same: the tree only asks for what it shows.
 ---@param path string
 function M.refresh(path)
   if type(path) ~= "string" or path == "" or next(listeners) == nil then return end
@@ -146,12 +288,20 @@ function M.refresh(path)
   local status = transcripts.status(path)
   local old = badges[path]
   if (old and old.status) == status then return end
+  local covered, running = false, false
+  for root, scan in pairs(scans) do
+    if scan.cancel then running = true end
+    if scan.result and below(path, root) then
+      scan.result.transcripts[path] = status
+      covered = true
+    end
+  end
+  loose[path] = not covered and status or nil
   badges[path] = status and badge(status) or nil
-  if last then last.transcripts[path] = status end
   tell({ path })
   -- A scan that is on its way may have read the folder before the file changed, and its answer
-  -- replaces the table: look once more when it is through.
-  if cancel_scan then M.rescan_soon() end
+  -- replaces what it found there before: look once more when it is through.
+  if running then M.rescan_soon() end
 end
 
 ---`rescan` after `DEBOUNCE_MS` without another call.
@@ -186,7 +336,22 @@ local function start_listening()
       if type(data) == "table" then M.refresh(data.path) end
     end,
   })
-  vim.api.nvim_create_autocmd("DirChanged", { group = group, callback = M.rescan_soon })
+  -- a tree was made, rooted elsewhere or given up
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "FiletreeRoots",
+    callback = function()
+      M.sync()
+    end,
+  })
+  -- the working directory is a root only for a tree that cannot say which one it shows
+  vim.api.nvim_create_autocmd("DirChanged", {
+    group = group,
+    callback = function()
+      local _, cwd = M.roots()
+      if cwd then M.rescan_soon() end
+    end,
+  })
 end
 
 local function stop_listening()
@@ -196,16 +361,20 @@ local function stop_listening()
     if not timer:is_closing() then timer:close() end
     timer = nil
   end
-  if cancel_scan then
-    cancel_scan()
-    cancel_scan = nil
+  for _, scan in pairs(scans) do
+    if scan.cancel then scan.cancel() end
   end
+  scans = {}
 end
 
----What the last scan found, or nil before the first one ended (for `:checkhealth` and the specs).
+---What the last scan that ended found, or with `root` what the scan of that root found; nil before
+---it ended (for `:checkhealth` and the specs).
+---@param root? string
 ---@return Media.Hub.Transcripts.Result|nil
-function M.last_scan()
-  return last
+function M.last_scan(root)
+  if root == nil then return last end
+  local scan = scans[require("media.hub.transcripts").norm(root)]
+  return scan and scan.result or nil
 end
 
 -- ── the preview ──────────────────────────────────────────────────────────────
@@ -339,18 +508,21 @@ function M.register(opts)
     all = function()
       return badges
     end,
-    subscribe = function(emit)
+    -- `ctx` (filetree.nvim hands it since `User FiletreeRoots` exists): where to ask for the roots
+    subscribe = function(emit, ctx)
       next_listener = next_listener + 1
       local id = next_listener
       local first = next(listeners) == nil
-      listeners[id] = emit
-      if first then
-        start_listening()
-        M.rescan()
-      end
+      listeners[id] = { emit = emit, ctx = type(ctx) == "table" and ctx or nil }
+      if first then start_listening() end
+      M.sync()
       return function()
         listeners[id] = nil
-        if next(listeners) == nil then stop_listening() end
+        if next(listeners) == nil then
+          stop_listening()
+        else
+          M.sync()
+        end
       end
     end,
   })
@@ -377,6 +549,7 @@ function M.unregister()
   listeners = {}
   stop_listening()
   badges = {}
+  loose = {}
   last = nil
 end
 

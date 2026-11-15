@@ -359,7 +359,7 @@ return {
   --- `true`, `false` (neither), or a table: `{ badge = "<text>" }` for another
   --- badge text, `{ preview = false }` for the badge alone.
   ---
-  --- The working directory is scanned in the background, and only while a tree
+  --- The roots the tree shows are scanned in the background, and only while a tree
   --- shows the badges; the still is rendered when the preview asks for it.
   ---@type boolean|Media.Opts.Tree
   tree = true,

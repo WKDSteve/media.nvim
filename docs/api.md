@@ -168,9 +168,16 @@ local cancel = tree.preview(node, ctx, function(result)
   -- result.note:  one line instead of a picture ("ffmpeg not found ...")
 end)
 
-tree.rescan()              -- look for transcripts again, in the background
+tree.rescan()              -- look for transcripts again below every root, in the background
+tree.sync()                -- only below a root that is new; forget one no tree shows any more
 tree.refresh(path)         -- look at one media file again
+tree.roots()               -- the folders that are scanned: the roots the trees show
+tree.last_scan(root)       -- what the scan of that root found (without `root`: the last one that ended)
 ```
+
+The roots come from the tree: a decorator's `subscribe(emit, ctx)` is handed
+`ctx.roots()` by filetree.nvim, and `User FiletreeRoots` says when they change.
+A tree that hands no `ctx` stands for the working directory.
 
 `preview` returns at once and starts no player; `cancel()` drops the answer.
 

@@ -222,10 +222,13 @@ entries are never read and nothing runs.
 
 **The badge** stands next to every video or audio file that has a
 `<file>.transcript.md` beside it, in another colour when the file changed
-after the transcript was written. The working directory is searched for
+after the transcript was written. The folder the tree shows is searched for
 transcripts in the background, in short slices, and only while a tree shows
-the badges; a file operation of the tree or a `:cd` starts the search again,
-and a transcript media.nvim itself writes shows up without one. The folders of
+the badges: every root once, a root the tree moves to when it gets there, and
+all of them again after a file operation of the tree. A transcript media.nvim
+itself writes shows up without a search. (A filetree.nvim that does not say
+which root it shows yet gets the working directory searched, again after a
+`:cd`.) The folders of
 `hub.exclude` are skipped and `hub.max_entries` bounds the search. The home
 folder and the top of a drive are not searched.
 

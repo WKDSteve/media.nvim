@@ -249,6 +249,54 @@ end, calls)
 T.eq("and no player", #players, 0)
 
 vim.system = real_system
+
+-- ── the scan follows the root of the tree ────────────────────────────────────
+local native = require("filetree.native")
+if type(native.roots) ~= "function" then
+  T.na(
+    "this filetree.nvim does not say which roots its trees show: the scan stays at the working directory"
+  )
+else
+  local elsewhere = T.norm(vim.fn.tempname())
+  vim.fn.mkdir(elsewhere, "p")
+  for _, name in ipairs({ "clip.mp4", "clip.mp4.transcript.md" }) do
+    local fd = assert(io.open(elsewhere .. "/" .. name, "w"))
+    fd:write("x")
+    fd:close()
+  end
+  local decorator = require("lib.nvim.tree.registry").get("decorator", "transcript")
+  T.tree()
+  T.ok(
+    "the tree moves to a folder outside the working directory",
+    native.current():set_root(elsewhere)
+  )
+  T.ok(
+    "... which it shows",
+    T.wait(function()
+      return T.adapter.get_node_line(elsewhere .. "/clip.mp4") ~= nil
+    end, 3000)
+  )
+  T.ok(
+    "... and the video there gets its badge",
+    T.wait(function()
+      return decorator.get(elsewhere .. "/clip.mp4") ~= nil
+    end, 5000)
+  )
+  T.eq(
+    "what lay below the root it left is forgotten",
+    decorator.get(dir .. "/talks/retro.mp4"),
+    nil
+  )
+  native.current():set_root(dir)
+  T.ok(
+    "back at the project its badges are back",
+    T.wait(function()
+      return decorator.get(dir .. "/talks/retro.mp4") ~= nil
+    end, 5000)
+  )
+  vim.fn.delete(elsewhere, "rf")
+end
+
 T.eq("no dialog nobody expected", T.unanswered, 0)
 require("media.integrations.tree").unregister()
 vim.fn.delete(scratch, "rf")

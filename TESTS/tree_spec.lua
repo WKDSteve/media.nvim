@@ -45,6 +45,8 @@ return function(H)
     return table.concat(out, "\n")
   end
 
+  ---@type string|nil, string|nil  a second project, and a link to it
+  local other, link = nil, nil
   local cwd = vim.fn.getcwd()
   local debounce = tree.DEBOUNCE_MS
   local config = require("media.config")
@@ -286,6 +288,155 @@ return function(H)
     H.eq(registry.get("decorator", "transcript"), nil, "unregister() takes the entry out")
     H.eq(tree.last_scan(), nil)
 
+    -- ── the roots of the trees ──────────────────────────────────────────────
+    -- A tree says which roots it shows (`ctx.roots()`), and the scan follows them: the working
+    -- directory (still `root`) is not looked at unless a tree shows it.
+    local scanned = {}
+    transcripts.scan = function(dir, ...)
+      scanned[#scanned + 1] = dir
+      return real.scan(dir, ...)
+    end
+    write("talks/retro.mp4.transcript.md", now - 500)
+    other = vim.fs.normalize(vim.fn.tempname())
+    vim.fn.mkdir(other .. "/clips", "p")
+    for _, name in ipairs({ "clips/demo.mp4", "clips/demo.mp4.transcript.md" }) do
+      local fd = assert(io.open(other .. "/" .. name, "w"))
+      fd:write("x")
+      fd:close()
+    end
+    other = transcripts.norm(other)
+    local showing = { other }
+    local ctx = {
+      roots = function()
+        return showing
+      end,
+    }
+    local function roots_changed()
+      vim.api.nvim_exec_autocmds("User", { pattern = "FiletreeRoots", modeline = false })
+    end
+    ---@param dir string
+    local function scan_ended(dir)
+      return vim.wait(5000, function()
+        return tree.last_scan(dir) ~= nil
+      end, 5)
+    end
+
+    H.eq(tree.register(), true)
+    entry = registry.get("decorator", "transcript")
+    local named = {}
+    local quit = entry.subscribe(function(keys)
+      for _, key in ipairs(keys or {}) do
+        named[#named + 1] = key
+      end
+    end, ctx)
+    H.eq(
+      table.concat(scanned, "\n"),
+      other,
+      "the root of the tree is scanned, not the working directory"
+    )
+    H.ok(scan_ended(other), "the scan of the root ends")
+    H.eq(
+      entry.get(other .. "/clips/demo.mp4").status,
+      "ok",
+      "a tree rooted outside the working directory shows the badge"
+    )
+    H.eq(entry.get(root .. "/notes.m4a"), nil, "what no tree shows has none")
+    H.eq(table.concat(tree.roots(), "\n"), other)
+
+    -- another root comes: that one is scanned, the first one is left alone
+    showing = { other, root }
+    roots_changed()
+    H.eq(#scanned, 2, "one scan for the root that is new")
+    H.eq(scanned[2], root)
+    H.ok(scan_ended(root))
+    H.eq(entry.get(root .. "/notes.m4a").status, "ok")
+    H.eq(entry.get(other .. "/clips/demo.mp4").status, "ok", "the badges of the first root stay")
+    roots_changed()
+    H.eq(#scanned, 2, "the same roots again: nothing is scanned")
+
+    -- with trees that say their roots the working directory is nobody's business
+    vim.api.nvim_exec_autocmds("DirChanged", { pattern = "global", modeline = false })
+    vim.wait(60)
+    H.eq(#scanned, 2, ":cd scans nothing")
+
+    -- a file operation: every root once
+    vim.api.nvim_exec_autocmds("User", { pattern = "FiletreeChanged", modeline = false })
+    H.ok(
+      vim.wait(2000, function()
+        return #scanned == 4
+      end, 5),
+      "a file operation scans both roots again"
+    )
+    H.ok(vim.wait(5000, function()
+      return tree.last_scan(root) ~= nil and tree.last_scan(other) ~= nil
+    end, 5))
+
+    -- a root no tree shows any more: its badges go, without a scan
+    named = {}
+    showing = { root }
+    roots_changed()
+    H.eq(
+      entry.get(other .. "/clips/demo.mp4"),
+      nil,
+      "the badges of a root that is gone are forgotten"
+    )
+    H.eq(table.concat(named, "\n"), other .. "/clips/demo.mp4", "and the tree is told")
+    H.eq(tree.last_scan(other), nil)
+    H.eq(#scanned, 4)
+
+    -- the home folder as a root stays unscanned
+    showing = { root, uv.os_homedir() }
+    roots_changed()
+    H.eq(#scanned, 4, "the home folder is not walked")
+    H.eq(tree.last_scan(uv.os_homedir()).partial, true)
+
+    -- A root behind a link: scanned through the link, the badges in the spelling the tree shows.
+    link = transcripts.norm(vim.fs.normalize(vim.fn.tempname()))
+    local linked = uv.fs_symlink(other, link, { dir = true, junction = true })
+    if linked then
+      showing = { link }
+      roots_changed()
+      H.ok(scan_ended(link), "the scan through the link ends")
+      H.eq(entry.get(link .. "/clips/demo.mp4").status, "ok", "the badge by the name the tree uses")
+      H.eq(entry.get(other .. "/clips/demo.mp4"), nil, "not by the name the link resolves to")
+    end
+
+    -- a second tree that hands no context (an older filetree.nvim) stands for the working directory
+    showing = { other }
+    roots_changed()
+    local before_old = #scanned
+    local quit_old = entry.subscribe(function() end)
+    H.eq(#scanned, before_old + 1, "the tree without a context adds one scan")
+    H.eq(scanned[#scanned], root, "of the working directory")
+    local both = { other, root }
+    table.sort(both)
+    H.eq(table.concat(tree.roots(), "\n"), table.concat(both, "\n"), "next to the other root")
+    vim.api.nvim_exec_autocmds("DirChanged", { pattern = "global", modeline = false })
+    H.ok(
+      vim.wait(2000, function()
+        return #scanned == before_old + 3
+      end, 5),
+      "and :cd scans again while it listens"
+    )
+    quit_old()
+    H.eq(tree.last_scan(root), nil, "it leaves: the working directory is no root any more")
+    quit()
+    tree.unregister()
+
+    -- a context that raises or answers nonsense is a tree that cannot say: the working directory
+    tree.register()
+    entry = registry.get("decorator", "transcript")
+    scanned = {}
+    quit = entry.subscribe(function() end, {
+      roots = function()
+        error("no roots today")
+      end,
+    })
+    H.eq(table.concat(scanned, "\n"), root)
+    quit()
+    tree.unregister()
+    transcripts.scan = real.scan
+
     -- ── setup() ─────────────────────────────────────────────────────────────
     local _, problems = config.validate({ tree = "yes" })
     H.eq(problems[1], "tree must be boolean or table, got string")
@@ -523,5 +674,11 @@ return function(H)
   tree.unregister()
   vim.api.nvim_set_current_dir(cwd)
   vim.fn.delete(root, "rf")
+  -- the link itself, never what lies behind it
+  if link then
+    pcall(uv.fs_unlink, link)
+    pcall(uv.fs_rmdir, link)
+  end
+  if other then vim.fn.delete(other, "rf") end
   if not ok then error(err, 0) end
 end
