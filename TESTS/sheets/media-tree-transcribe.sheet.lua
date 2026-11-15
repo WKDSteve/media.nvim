@@ -1,5 +1,5 @@
--- Features media.tree-badge and media.tree-actions (TESTS/sheets/features.lua), transcribe: in the real own tree of
--- filetree.nvim a recording with a transcript next to it carries the badge `transcript`, one without has none.
+-- Feature media.tree-actions (TESTS/sheets/features.lua), transcribe: in the real own tree of filetree.nvim a
+-- recording with a transcript next to it carries the badge `transcript`, one without has none (media.tree-badge).
 -- "Transcribe this recording into a file next to it" from the context menu writes `<file>.transcript.md`, and the
 -- badge follows without a scan; the configured key does the same on an audio file. Without an engine nothing is
 -- started and one line says what is missing.
@@ -44,7 +44,6 @@ return {
       expect = [[_G.eq(_G.row("talks/retro.mp4.transcript.md"), "      retro.mp4.transcript.md")]],
       note = "nor has the transcript itself",
     },
-    { screen = "badge", note = "the tree with the badge" },
 
     -- transcribe from the menu
     {
@@ -109,9 +108,6 @@ return {
       note = "one line says what is missing",
     },
     { expect = [[_G.eq(_G.transcribed, {})]], note = "and nothing is started" },
-  },
-  judge = {
-    "The badge sits at the right edge of the tree and reads as a note, not as an error",
   },
   manual = {
     "In the real editor with a real engine (whisper.cpp or faster-whisper) and a real recording: the transcript holds what is said, the progress is shown while it runs, and the badge appears when it ends",
