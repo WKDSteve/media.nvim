@@ -11,7 +11,7 @@ return {
   id = "media.tree-transcribe",
   feature = "media.tree-actions",
   title = "media.nvim: transcribe from the menu and the key of a media node writes the sidecar, the badge follows",
-  task = "images.nvim/own-tree-feature-sheets-images-media-pickers",
+  task = "media.nvim/abnahme-media-actions-in-the-own-tree",
   engine = "rpc",
   sizes = { { rows = 24, cols = 100 } },
   requires = {

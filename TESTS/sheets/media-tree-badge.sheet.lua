@@ -10,7 +10,7 @@ return {
   id = "media.tree-badge",
   feature = "media.tree-badge",
   title = "media.nvim: a recording with a transcript next to it carries a badge in the tree",
-  task = "images.nvim/own-tree-feature-sheets-images-media-pickers",
+  task = "media.nvim/abnahme-media-actions-in-the-own-tree",
   engine = "rpc",
   sizes = { { rows = 24, cols = 100 } },
   requires = {

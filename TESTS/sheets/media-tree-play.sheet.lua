@@ -8,7 +8,7 @@ return {
   id = "media.tree-play",
   feature = "media.tree-actions",
   title = "media.nvim: play from the menu and the key of a media node in the tree starts the player with that file",
-  task = "images.nvim/own-tree-feature-sheets-images-media-pickers",
+  task = "media.nvim/abnahme-media-actions-in-the-own-tree",
   engine = "rpc",
   sizes = { { rows = 24, cols = 100 } },
   fakes = { "mpv" },

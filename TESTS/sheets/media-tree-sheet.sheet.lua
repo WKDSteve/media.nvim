@@ -8,7 +8,7 @@ return {
   id = "media.tree-sheet",
   feature = "media.tree-actions",
   title = "media.nvim: contact sheet from the menu and the key of a video node in the tree renders and shows it",
-  task = "images.nvim/own-tree-feature-sheets-images-media-pickers",
+  task = "media.nvim/abnahme-media-actions-in-the-own-tree",
   engine = "rpc",
   sizes = { { rows = 24, cols = 100 } },
   requires = {
