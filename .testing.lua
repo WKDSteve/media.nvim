@@ -14,6 +14,10 @@ return {
   -- "none" = all specs in one nvim, "file" = one nvim per spec file
   -- (nothing leaks from one file into the next).
   timeouts = { case_ms = 60000, file_ms = 300000 },
+  -- Environment variables the specs read; a child editor inherits an allowlist only (never secrets).
+  -- UI_NVIM_DIR, FILETREE_NVIM_DIR: how ui.nvim and filetree.nvim reach the media.tree-* test sheets from the worktree
+  -- of `ci commit`, where they are no siblings (TESTS/minimal_init.lua names them, TESTS/sheets/_helpers.lua adds them).
+  env_allow = { "UI_NVIM_DIR", "FILETREE_NVIM_DIR" },
   isolated = "file",
   -- Safety nets (testing.nvim docs/GUARDS.md). With "file" the setup() state of smoke_spec (the
   -- MediaNvim autocmd group, :Media, the \M* keymaps) stays in that file's own nvim, so the state
@@ -69,6 +73,19 @@ return {
       timeout = 40,
       -- `testing ci land`: a check branch ci/** runs the hosted legs, main moves to a commit only once it is green there
       land = true,
+      -- more checkouts below .deps/, not on the runtimepath of the specs
+      checkouts = {
+        {
+          repo = "WKDSteve/ui.nvim",
+          ref = "ci-verified",
+          why = "the media.tree-* test sheets open the real context menu of the tree",
+        },
+        {
+          repo = "WKDSteve/filetree.nvim",
+          ref = "ci-verified",
+          why = "the media.tree-* test sheets run the badge and the actions in its own tree",
+        },
+      },
     },
     steps = {
       ["workflow-in-sync"] = { preset = "workflow-in-sync" },

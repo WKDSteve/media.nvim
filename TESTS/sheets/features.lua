@@ -2,8 +2,10 @@
 -- which ones have a feature sheet (`feature = "<id>"`) and in which state, and K16 warns about a sheet that names an
 -- id not listed here. Data: read with an empty environment like a sheet (testing.nvim docs/SHEETS.md).
 -- The list follows docs/what-you-get.md and docs/commands.md (there is no manual checklist for media.nvim).
--- The two sheets require ffmpeg and ffprobe; the workflow installs ffmpeg on every hosted leg (`packages` in
+-- The sheets that render require ffmpeg and ffprobe; the workflow installs ffmpeg on every hosted leg (`packages` in
 -- .testing.lua), so they run there and name their feature (a requires skip of a feature sheet is red under CI).
+-- The `media.tree-*` sheets run in the real own tree of filetree.nvim, with the menus of ui.nvim: the workflow
+-- checks both out below .deps/ (`checkouts` in .testing.lua).
 return {
   {
     id = "media.describe",
@@ -57,6 +59,23 @@ return {
     title = ":Media health and :checkhealth media say which external tools are there",
     surface = { "command:Media health" },
     docs = "docs/health.md",
+  },
+  {
+    id = "media.tree-badge",
+    title = "In a tree view a recording with a transcript next to it carries a badge",
+    surface = { "config:tree", "config:tree.badge" },
+    docs = "docs/configuration.md",
+  },
+  {
+    id = "media.tree-actions",
+    title = "Transcribe, play and contact sheet on a media node of a tree view, from its menu or a configured key",
+    surface = {
+      "config:tree.actions",
+      "config:tree.keys.transcribe",
+      "config:tree.keys.play",
+      "config:tree.keys.sheet",
+    },
+    docs = "docs/configuration.md",
   },
   {
     id = "media.cache",

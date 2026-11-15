@@ -81,6 +81,15 @@ processes that use them for exactly this reason. The exception is
 `TESTS/sheets/` on a real video: they need ffmpeg and ffprobe and are reported
 as skipped where those are missing (the CI legs install ffmpeg, and there such a
 skip is red).
+The `media.tree-*` sheets run the transcript badge and the three actions
+(transcribe, play, contact sheet) on a media node of the **real own tree of
+filetree.nvim**, from its context menu and from a key: the player is a recording
+stand-in (`fakes`), the engine a stand-in that answers at once, ffmpeg the real
+one. filetree.nvim and ui.nvim are looked up like a dependency
+(`$FILETREE_NVIM_DIR` / `$UI_NVIM_DIR`, `.deps/<name>`, `../<name>`) but stay off
+the runtimepath of the specs; the workflow checks both out below `.deps/`. What
+stays for a person (real sound and picture, a real engine) is in the `manual`
+lines of the sheets (`testing sheets report`).
 
 The runner exits non-zero on any failure and prints which spec failed. Specs are
 discovered by name (`*_spec.lua`) and every spec file runs in its own nvim

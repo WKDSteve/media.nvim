@@ -14,7 +14,14 @@
 local this = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")
 local root = vim.fs.dirname(vim.fs.dirname(vim.fs.normalize(this)))
 
-local DEPS = { "testing.nvim", "lib.nvim" }
+local DEPS = { "testing.nvim", "lib.nvim", "ui.nvim", "filetree.nvim" }
+
+-- Named above so the runner hands them to the child editors as $<NAME>_DIR (`ci commit` runs in a worktree, where
+-- they are no siblings). They are neither required nor put on the runtimepath of the specs: only the test sheets
+-- use them (the real tree of filetree.nvim and the menus of ui.nvim), and a sheet adds them in its own child
+-- (TESTS/sheets/_helpers.lua reads `vim.g.media_sheets_deps`, set below); without one it is a reported skip.
+---@type table<string, true>
+local SHEETS_ONLY = { ["ui.nvim"] = true, ["filetree.nvim"] = true }
 
 ---@type table<string, string>
 local MARKERS = { ["lib.nvim"] = "lua/lib/nvim", ["testing.nvim"] = "lua/testing" }
@@ -58,7 +65,7 @@ for _, name in ipairs(DEPS) do
   end
   if hit then
     found[name] = hit
-  else
+  elseif not SHEETS_ONLY[name] then
     local lines = { ("error: dependency '%s' not found. Searched, in this order:"):format(name) }
     for i, p in ipairs(places) do
       lines[#lines + 1] = ("  %d. %s (%s)"):format(i, p[1], p[2] or "unset")
@@ -78,7 +85,9 @@ end
 
 vim.opt.rtp:prepend(root)
 for _, name in ipairs(DEPS) do
-  vim.opt.rtp:append(found[name])
+  if not SHEETS_ONLY[name] then vim.opt.rtp:append(found[name]) end
 end
+vim.g.media_sheets_deps =
+  { ["ui.nvim"] = found["ui.nvim"], ["filetree.nvim"] = found["filetree.nvim"] }
 
 return { root = root, deps = found }

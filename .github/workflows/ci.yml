@@ -89,6 +89,20 @@ jobs:
           repository: WKDSteve/lib.nvim
           path: .deps/lib.nvim
           ref: ci-verified
+      # the media.tree-* test sheets open the real context menu of the tree
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          repository: WKDSteve/ui.nvim
+          path: .deps/ui.nvim
+          ref: ci-verified
+      # the media.tree-* test sheets run the badge and the actions in its own tree
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          repository: WKDSteve/filetree.nvim
+          path: .deps/filetree.nvim
+          ref: ci-verified
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
