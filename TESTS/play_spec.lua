@@ -66,5 +66,24 @@ return function(H)
   H.eq(argv5, nil, "an empty table has no argv[1] to run")
   H.match(perr5, "string or an argv list", "")
 
+  -- ── an mpv that cannot be started: an error, never a raise ─────────────
+  -- `bin.mpv` is honoured as given even when it names nothing (core.bin), so
+  -- the spawn itself is what fails; nothing is started.
+  config.setup({ bin = { mpv = "E:/__play_spec__/does-not-exist.exe" } })
+  require("media.core.bin").reset("mpv")
+  local raised_ok, raise = pcall(function()
+    local handle, werr = require("media.core.player").start("E:/__play_spec__/clip.mp4")
+    H.eq(handle, nil, "player.start: no handle from an mpv that cannot start")
+    H.match(werr, "could not start mpv", "player.start says so")
+
+    local got_handle, got_err
+    require("media.core.audio").start("E:/__play_spec__/clip.mp4", {}, function(h, e)
+      got_handle, got_err = h, e
+    end)
+    H.eq(got_handle, nil, "audio.start: no handle either")
+    H.match(got_err, "could not start mpv", "audio.start calls back with the reason")
+  end)
+  require("media.core.bin").reset("mpv")
   config.setup({})
+  H.ok(raised_ok, "starting mpv must not raise: " .. tostring(raise))
 end

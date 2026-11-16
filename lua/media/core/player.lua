@@ -199,11 +199,18 @@ function M.start(path, opts)
   -- own `q`), so the handle can drop out of `live` without a poll loop. It
   -- must `vim.schedule` before touching anything — the callback thread is not
   -- the main loop.
-  local proc = vim.system(argv, {}, function()
+  --
+  -- `pcall`ed: `vim.system` raises when mpv cannot be spawned at all (a
+  -- `bin.mpv` that names nothing); this function answers with an error then.
+  local spawned, proc = pcall(vim.system, argv, {}, function()
     vim.schedule(function()
       if handle then live[handle] = nil end
     end)
   end)
+  if not spawned then
+    return nil,
+      ("could not start mpv: %s — install it, or check `bin.mpv`"):format(tostring(proc))
+  end
 
   handle = {
     proc = proc,

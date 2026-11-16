@@ -215,7 +215,17 @@ function M.start(path, opts, callback)
   -- makes, and its module header explains why: `detach` never starts a
   -- console program on Windows at all, and waiting would block the editor for
   -- the length of the file.
-  local proc = vim.system(argv, {})
+  --
+  -- `pcall`ed: `vim.system` raises when mpv cannot be spawned at all (a
+  -- `bin.mpv` that names nothing), and the caller is promised a callback.
+  local spawned, proc = pcall(vim.system, argv, {})
+  if not spawned then
+    callback(
+      nil,
+      ("could not start mpv: %s — audio disabled, playback stays silent"):format(tostring(proc))
+    )
+    return
+  end
 
   local attempts = 0
   local given_up = false
