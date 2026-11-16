@@ -87,6 +87,105 @@ function _G.boot()
   vim.cmd("edit " .. vim.fn.fnameescape(_G.video))
 end
 
+---A three second video without a sound track, beside the test video of `boot()`.
+---@return string path
+function _G.make_silent_video()
+  local path = _G.dir .. "/silent.mp4"
+  local made = vim
+    .system({
+      "ffmpeg",
+      "-v",
+      "error",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=duration=3:size=320x240:rate=10",
+      "-an",
+      "-pix_fmt",
+      "yuv420p",
+      path,
+    })
+    :wait()
+  assert(made.code == 0, "ffmpeg could not make the silent video: " .. tostring(made.stderr))
+  return path
+end
+
+---Replace the run of the registered whisper_cpp engine with a stand-in that records what it was asked
+---(`_G.heard`: `{ wav, lang, task }` per run) and answers at once; `false` puts the real engine back.
+---@param on? boolean
+function _G.whisper_stand_in(on)
+  local engine = require("media.engines.whisper_cpp")
+  _G.real_whisper = _G.real_whisper
+    or { available = engine.available, ready = engine.ready, transcribe = engine.transcribe }
+  if on == false then
+    for name, fn in pairs(_G.real_whisper) do
+      engine[name] = fn
+    end
+    return
+  end
+  _G.heard = {}
+  engine.available = function()
+    return true
+  end
+  engine.ready = function()
+    return true, nil
+  end
+  engine.transcribe = function(wav, opts, callback)
+    _G.heard[#_G.heard + 1] = { wav = wav, lang = opts and opts.lang, task = opts and opts.task }
+    vim.schedule(function()
+      callback({
+        engine = "whisper_cpp",
+        model = "stand-in",
+        lang = opts and opts.lang or "en",
+        segments = { { s = 0, e = 1, text = "Hello from the stand-in" } },
+        text = "Hello from the stand-in",
+      }, nil)
+    end)
+    return { cancel = function() end }
+  end
+end
+
+---The sidecar transcript of the test video.
+---@return string
+function _G.sidecar()
+  return table.concat(vim.fn.readfile(_G.video .. ".transcript.md"), "\n")
+end
+
+---The text of every window's buffer, joined.
+---@return string
+function _G.buftext()
+  local out = {}
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    out[#out + 1] =
+      table.concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(w), 0, -1, false), "\n")
+  end
+  return table.concat(out, "\n")
+end
+
+---Close every other window (a transcript in a buffer or a float has the focus) and edit the test video again.
+function _G.back_to_video()
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_config(w).relative ~= "" then pcall(vim.api.nvim_win_close, w, true) end
+  end
+  vim.cmd("silent! only!")
+  vim.cmd("edit! " .. vim.fn.fnameescape(_G.video))
+end
+
+---Width and height of a PNG, read from its IHDR chunk (bytes 17-24, big-endian).
+---@param path string
+---@return integer[] { width, height }
+function _G.png_size(path)
+  local f = assert(io.open(path, "rb"))
+  local head = f:read(24)
+  f:close()
+  assert(head and #head == 24 and head:sub(2, 4) == "PNG", "not a PNG: " .. path)
+  local function u32(at)
+    local a, b, c, d = head:byte(at, at + 3)
+    return ((a * 256 + b) * 256 + c) * 256 + d
+  end
+  return { u32(17), u32(21) }
+end
+
 -- ── the sheets in the real own tree of filetree.nvim ─────────────────────────────────────────────────
 -- media.nvim on a media node of the tree: the transcript badge and the three actions (transcribe, play,
 -- contact sheet), from the context menu with the mouse and from the keys a config can give them.
