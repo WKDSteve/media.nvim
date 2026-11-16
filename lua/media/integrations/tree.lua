@@ -16,6 +16,9 @@
 ---  - every root again after a file operation of a tree (`User FiletreeChanged`,
 ---    `User FileopsChanged`), a moment later and once for however many of them
 ---    came together
+---  - the folders the tree's watcher reports (`User FiletreeFsChanged`, `data.dirs`): no scan, the
+---    media files of just those folders are looked at again, so a transcript another program writes
+---    or deletes shows at once
 ---  - on demand: `require("media.integrations.tree").rescan()`
 ---
 --- A tree that hands no context (a filetree.nvim before `FiletreeRoots`) stands
@@ -322,6 +325,32 @@ function M.refresh(path)
   if running then M.rescan_soon() end
 end
 
+---At most this many entries of one folder are looked at when the watcher reports it.
+M.MAX_DIR_ENTRIES = 5000
+
+---Look at the media files of the folders the tree's watcher reported (`User FiletreeFsChanged`)
+---again, one by one through `refresh`: a transcript another program wrote or deleted shows without a
+---scan of the roots. A folder that is gone or cannot be read is skipped.
+---@param dirs any  `data.dirs` of the event: a list of folders
+function M.refresh_dirs(dirs)
+  if type(dirs) ~= "table" or next(listeners) == nil then return end
+  local is_media = require("media.formats").is_media
+  for _, dir in ipairs(dirs) do
+    if type(dir) == "string" and dir ~= "" then
+      local handle = vim.uv.fs_scandir(dir)
+      local seen = 0
+      while handle and seen < M.MAX_DIR_ENTRIES do
+        local name, kind = vim.uv.fs_scandir_next(handle)
+        if not name then break end
+        seen = seen + 1
+        if (kind == "file" or kind == "link") and is_media(name) then
+          M.refresh(dir .. "/" .. name)
+        end
+      end
+    end
+  end
+end
+
 ---`rescan` after `DEBOUNCE_MS` without another call.
 function M.rescan_soon()
   if not timer then timer = vim.uv.new_timer() end
@@ -345,6 +374,14 @@ local function start_listening()
     group = group,
     pattern = { "FiletreeChanged", "FileopsChanged" },
     callback = M.rescan_soon,
+  })
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "FiletreeFsChanged",
+    callback = function(args)
+      local data = args.data
+      if type(data) == "table" then M.refresh_dirs(data.dirs) end
+    end,
   })
   vim.api.nvim_create_autocmd("User", {
     group = group,

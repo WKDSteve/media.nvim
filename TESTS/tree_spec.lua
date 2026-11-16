@@ -252,6 +252,26 @@ return function(H)
     H.eq(scans, 2, "two events, one scan")
     H.eq(emitted[#emitted][1], root .. "/talks/retro.mp4")
 
+    -- a transcript another program writes or deletes: the tree's watcher names the folder, and the
+    -- media files of that folder are looked at again, without a scan
+    write("talks/retro.mp4.transcript.md", now)
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = "FiletreeFsChanged",
+      modeline = false,
+      data = { dirs = { root .. "/talks" } },
+    })
+    H.eq(entry.get(root .. "/talks/retro.mp4").status, "ok", "written outside: the badge is there")
+    H.eq(emitted[#emitted][1], root .. "/talks/retro.mp4", "and the tree is told")
+    uv.fs_unlink(root .. "/talks/retro.mp4.transcript.md")
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = "FiletreeFsChanged",
+      modeline = false,
+      data = { dirs = { root .. "/talks", root .. "/gone", 7 } },
+    })
+    H.eq(entry.get(root .. "/talks/retro.mp4"), nil, "deleted outside: the badge is gone")
+    vim.wait(2 * tree.DEBOUNCE_MS)
+    H.eq(scans, 2, "and no scan ran for either")
+
     -- the last tree that leaves takes the autocommands along
     unsubscribe()
     H.eq(pcall(vim.api.nvim_get_autocmds, { group = "media.tree.transcripts" }), false)

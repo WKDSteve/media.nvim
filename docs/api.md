@@ -177,6 +177,7 @@ tree.sheet(path)           -- what `:Media sheet <path>` does; false without ffm
 tree.rescan()              -- look for transcripts again below every root, in the background
 tree.sync()                -- only below a root that is new; forget one no tree shows any more
 tree.refresh(path)         -- look at one media file again
+tree.refresh_dirs(dirs)    -- look at the media files of these folders again (what `User FiletreeFsChanged` does)
 tree.roots()               -- the folders that are scanned: the roots the trees show
 tree.last_scan(root)       -- what the scan of that root found (without `root`: the last one that ended)
 ```

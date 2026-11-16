@@ -228,7 +228,9 @@ after the transcript was written. The folder the tree shows is searched for
 transcripts in the background, in short slices, and only while a tree shows
 the badges: every root once, a root the tree moves to when it gets there, and
 all of them again after a file operation of the tree. A transcript media.nvim
-itself writes shows up without a search. (A filetree.nvim that does not say
+itself writes shows up without a search, and so does one another program
+writes or deletes in a folder the tree's watcher follows (`User
+FiletreeFsChanged`): only the media files of that folder are looked at. (A filetree.nvim that does not say
 which root it shows yet gets the working directory searched, again after a
 `:cd`.) The folders of
 `hub.exclude` are skipped and `hub.max_entries` bounds the search. The home
