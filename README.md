@@ -121,5 +121,6 @@ media.nvim is released under the [MIT License](https://opensource.org/licenses/M
 
 **Used by**
 
+- [filetree.nvim](https://github.com/WKDSteve/filetree.nvim): A spoken request in the AI bar of filetree.nvim is turned into text by the whisper engine of media.nvim (`media.transcribe`); without media.nvim the bar names it as missing. ([picture](assets/graphs/pair/filetree.nvim--media.nvim.png))
 - [hover.nvim](https://github.com/WKDSteve/hover.nvim): hover.nvim asks media.nvim whether a target is a media file (`media.is_media`) and takes its player for audio and video. ([picture](assets/graphs/pair/hover.nvim--media.nvim.png))
 <!-- connections:end -->
