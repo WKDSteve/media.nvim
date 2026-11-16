@@ -296,8 +296,28 @@ return function(H)
     H.eq(#calls, before, "no process for a model that is not there")
   end)
   vim.system = real_system
+
+  -- ── a binary that cannot be started (the real vim.system raises) ───────
+  local spawn_ok, spawn_raise = pcall(function()
+    config.setup({
+      bin = { ["whisper-ctranslate2"] = "E:/__faster_whisper_spec__/does-not-exist.exe" },
+      transcribe = { faster_whisper = { model_dir = hub } },
+    })
+    require("media.core.bin").reset()
+    local got, got_err
+    engine.transcribe("/tmp/talk.wav", {}, function(t, e)
+      got, got_err = t, e
+    end)
+    vim.wait(2000, function()
+      return got ~= nil or got_err ~= nil
+    end, 5)
+    H.eq(got, nil, "no transcript from a binary that cannot start")
+    H.match(got_err, "could not start", "the run calls back with an error instead of raising")
+  end)
+
   vim.fn.delete(hub, "rf")
   config.setup({})
   require("media.core.bin").reset()
   assert(run_ok, run_err)
+  assert(spawn_ok, spawn_raise)
 end

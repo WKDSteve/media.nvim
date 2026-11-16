@@ -189,7 +189,10 @@ function M.run(spec, callback)
   -- `0` means "no timeout", passed as `nil` — see `whisper_cpp.transcribe`.
   local timeout = (cfg.timeout_ms and cfg.timeout_ms > 0) and cfg.timeout_ms or nil
 
-  proc = vim.system(
+  -- `pcall`ed, as in `core.probe`: `vim.system` raises when the binary cannot
+  -- be spawned at all (a `bin[...]` that names nothing).
+  local spawned, started = pcall(
+    vim.system,
     spec.argv(out_dir),
     { text = true, timeout = timeout, env = spec.env },
     function(result)
@@ -219,6 +222,14 @@ function M.run(spec, callback)
       finish(spec.parse(doc), nil)
     end
   )
+  if not spawned then
+    remove_dir(out_dir)
+    vim.schedule(function()
+      finish(nil, ("could not start %s: %s"):format(spec.label, tostring(started)))
+    end)
+    return job
+  end
+  proc = started
 
   return job
 end

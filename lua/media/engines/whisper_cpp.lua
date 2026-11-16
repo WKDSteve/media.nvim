@@ -294,37 +294,58 @@ function M.transcribe(wav_path, opts, callback)
   -- a second", not "forever", so it is passed as `nil` instead.
   local timeout = (cfg.timeout_ms and cfg.timeout_ms > 0) and cfg.timeout_ms or nil
 
-  proc = vim.system(argv, { text = true, timeout = timeout }, function(result)
-    proc = nil
-    if result.code ~= 0 then
-      local stderr = (result.stderr or ""):gsub("%s+$", "")
-      finish(nil, stderr ~= "" and stderr or exit_message("whisper-cli", result.code))
-      return
-    end
+  -- `pcall`ed, as in `core.probe`: `vim.system` raises when the binary cannot
+  -- be spawned at all (a `bin["whisper-cli"]` that names nothing), and a raise
+  -- here would escape into the dispatcher's callback chain instead of
+  -- reaching the caller as an error.
+  local spawned, started = pcall(
+    vim.system,
+    argv,
+    { text = true, timeout = timeout },
+    function(result)
+      proc = nil
+      if result.code ~= 0 then
+        local stderr = (result.stderr or ""):gsub("%s+$", "")
+        finish(nil, stderr ~= "" and stderr or exit_message("whisper-cli", result.code))
+        return
+      end
 
-    local fd = io.open(json_path, "r")
-    if not fd then
-      -- **`whisper-cli` exits 0 on some failures**, so the check above cannot
-      -- be the only one. Measured 2026-09-17 against a real build: a file it
-      -- cannot decode gives code **0**, writes no JSON, and puts
-      -- `error: failed to read audio file '…'` on stderr. Before this, the
-      -- reader got "reported success but wrote no JSON" and the actual
-      -- reason — sitting right there in stderr — was discarded.
-      finish(nil, M.failure_reason(result.stderr) or ("whisper-cli wrote no JSON: " .. json_path))
-      return
-    end
-    local content = fd:read("*a")
-    fd:close()
-    os.remove(json_path)
+      local fd = io.open(json_path, "r")
+      if not fd then
+        -- **`whisper-cli` exits 0 on some failures**, so the check above cannot
+        -- be the only one. Measured 2026-09-17 against a real build: a file it
+        -- cannot decode gives code **0**, writes no JSON, and puts
+        -- `error: failed to read audio file '…'` on stderr. Before this, the
+        -- reader got "reported success but wrote no JSON" and the actual
+        -- reason — sitting right there in stderr — was discarded.
+        finish(nil, M.failure_reason(result.stderr) or ("whisper-cli wrote no JSON: " .. json_path))
+        return
+      end
+      local content = fd:read("*a")
+      fd:close()
+      os.remove(json_path)
 
-    local ok, doc = pcall(vim.json.decode, content)
-    if not ok or type(doc) ~= "table" then
-      finish(nil, "whisper-cli's JSON output could not be read")
-      return
-    end
+      local ok, doc = pcall(vim.json.decode, content)
+      if not ok or type(doc) ~= "table" then
+        finish(nil, "whisper-cli's JSON output could not be read")
+        return
+      end
 
-    finish(M.from_json(doc, model), nil)
-  end)
+      finish(M.from_json(doc, model), nil)
+    end
+  )
+  if not spawned then
+    vim.schedule(function()
+      finish(
+        nil,
+        ('could not start whisper-cli: %s — install whisper.cpp, or check `bin["whisper-cli"]`'):format(
+          tostring(started)
+        )
+      )
+    end)
+    return job
+  end
+  proc = started
 
   return job
 end

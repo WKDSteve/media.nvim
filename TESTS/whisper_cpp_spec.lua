@@ -170,6 +170,29 @@ return function(H)
   local _, missing_err = engine.resolve_model(dir .. "/nope.bin")
   H.match(missing_err, "model not found", "a path that does not exist is an error, not a search")
 
+  -- ── a whisper-cli that cannot be started ──────────────────────────────
+  -- `vim.system` raises on a binary it cannot spawn; the run must call back
+  -- with an error instead (it used to raise inside the dispatcher's chain).
+  config.setup({
+    bin = { ["whisper-cli"] = "E:/__whisper_cpp_spec__/does-not-exist.exe" },
+    transcribe = { whisper_cpp = { model = base } },
+  })
+  require("media.core.bin").reset()
+  local spawn_ok, spawn_raise = pcall(function()
+    local got, got_err
+    engine.transcribe(dir .. "/talk.wav", {}, function(t, e)
+      got, got_err = t, e
+    end)
+    vim.wait(2000, function()
+      return got ~= nil or got_err ~= nil
+    end, 5)
+    H.eq(got, nil, "no transcript from a binary that cannot start")
+    H.match(got_err, "could not start whisper%-cli", "the run calls back with an error")
+    H.match(got_err, 'bin%["whisper%-cli"%]', "and names the setting to check")
+  end)
+  require("media.core.bin").reset()
+  H.ok(spawn_ok, "transcribe must not raise: " .. tostring(spawn_raise))
+
   vim.fn.delete(dir, "rf")
   config.setup({})
 end
