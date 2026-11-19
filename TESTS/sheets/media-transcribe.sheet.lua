@@ -45,6 +45,13 @@ return {
     },
 
     -- the cache
+    {
+      -- the dispatcher writes the cached transcript after it has delivered the result (fire-and-forget,
+      -- core/dispatcher.lua); a second call before that write is a cache miss, which under load made this sheet flaky
+      wait = [[vim.iter(vim.fn.glob(require("media.core.cache").dir() .. "/*.json", true, true)):any(function(f) return vim.fn.getfsize(f) > 0 end)]],
+      timeout = 10000,
+      note = "the transcript is in the cache",
+    },
     { lua = [[_G.forget()]] },
     { keys = ":Media transcribe engine=whisper_cpp<CR>" },
     {
