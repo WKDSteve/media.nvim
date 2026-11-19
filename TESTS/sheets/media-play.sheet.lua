@@ -3,6 +3,7 @@
 -- sheet proves what would be started; that a window opens, plays with sound and closes again is a person's (the live
 -- plan's section 6, the manual line). `at=` is not read from the recorded argv: the Windows stand-in (a .cmd file)
 -- splits `--start=1` at the `=`; that `at=` reaches mpv as `--start=` is usrcmds_window_spec's.
+-- Without a `player` the file goes to the system opener of lib.nvim (explorer, open, xdg-open), stand-ins as well.
 return {
   id = "media.play",
   feature = "media.play",
@@ -10,7 +11,7 @@ return {
   task = "media.nvim/live-plan-media-live-testing-plan-sortieren-erledigtes-abhak",
   engine = "rpc",
   sizes = { { rows = 40, cols = 120 } },
-  fakes = { "mpv" },
+  fakes = { "mpv", "explorer", "xdg-open", "open" },
   requires = {
     {
       lua = [[vim.fn.executable("ffmpeg") == 1 and vim.fn.executable("ffprobe") == 1]],
@@ -59,8 +60,26 @@ return {
       expect = [[#_G.calls("mpv") == 2 and vim.api.nvim_get_mode().mode == "n"]],
       note = "nothing started, no hang",
     },
+
+    -- no player configured: the system opener (lib.nvim's open_default)
+    {
+      lua = [[_G.forget(); _G.warnings = {}; require("media").setup({}); _G.opener_bare_name()]],
+      note = "no `player` now; on Windows the opener's explorer.exe is called by its bare name",
+    },
+    { keys = ":Media play<CR>" },
+    {
+      wait = [[#_G.opened() == 1]],
+      timeout = 10000,
+      note = "the system opener is started once",
+    },
+    {
+      expect = [[_G.opened()[1].argv[#_G.opened()[1].argv]:find("clip.mp4", 1, true) ~= nil and #_G.calls("mpv") == 2]],
+      note = "with the video, and mpv is not started",
+    },
+    { expect = [[_G.eq(_G.warnings, {})]], note = "nothing was said at warning level" },
   },
   manual = {
     "With the real mpv: :Media window opens a window that plays picture and sound, and :qa closes it again",
+    "Without `player`: :Media play opens the video in the program the system has for it",
   },
 }

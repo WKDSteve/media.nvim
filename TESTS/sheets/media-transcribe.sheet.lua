@@ -102,6 +102,23 @@ return {
       note = "one line says whisper-cli is missing",
     },
     { expect = [[vim.api.nvim_get_mode().mode == "n"]], note = "no hang, the editor goes on" },
+
+    -- the openai-whisper engine (media.engines.whisper_cli, shared with faster-whisper): a `whisper` that fails
+    {
+      lua = [[_G.forget(); _G.warnings = {}; require("media").setup({ bin = { whisper = vim.v.progpath }, transcribe = { openai_whisper = { model = _G.video } } })]],
+      note = "whisper is a program that refuses the arguments (Neovim itself), the model a file that exists",
+    },
+    { lua = [[_G.back_to_video()]], note = "back in the video's buffer" },
+    { keys = ":Media transcribe engine=openai_whisper<CR>" },
+    {
+      wait = [[#_G.warnings > 0]],
+      timeout = 20000,
+      note = "the run ends in one line",
+    },
+    {
+      expect = [[table.concat(_G.warnings, "\n"):find("whisper exited with", 1, true) ~= nil and vim.api.nvim_get_mode().mode == "n"]],
+      note = "it says whisper failed and how, no hang",
+    },
   },
   judge = { "the sidecar reads well: title, date, engine line, text" },
   manual = {

@@ -7,6 +7,8 @@ return {
   task = "media.nvim/testblatt-bindings-checkliste",
   feature = "media.stills",
   sizes = { { rows = 40, cols = 120 } },
+  -- the system opener of lib.nvim, for the last step (`_G.opened()` in _helpers.lua)
+  fakes = { "explorer", "xdg-open", "open" },
   requires = {
     {
       lua = [[vim.fn.executable("ffmpeg") == 1 and vim.fn.executable("ffprobe") == 1]],
@@ -54,7 +56,27 @@ return {
       timeout = 10000,
       note = "<leader>Mp describes the file",
     },
+    { keys = "q" },
+
+    -- without images.nvim the still goes to the system's picture viewer (lib.nvim's open_default)
+    {
+      lua = [[_G.forget(); package.loaded["media.ui"].show_image = _G.real_show_image; _G.opener_bare_name()]],
+      note = "the real viewer chain now; images.nvim is not installed here",
+    },
+    { keys = ":Media frame at=2 width=200<CR>" },
+    {
+      wait = [[#_G.opened() == 1]],
+      timeout = 15000,
+      note = "the system opener is started once",
+    },
+    {
+      expect = [[_G.opened()[1].argv[#_G.opened()[1].argv]:match("%.png$") ~= nil]],
+      note = "with the rendered PNG",
+    },
   },
   judge = { "the poster frame and the contact sheet look right (not black, in the right order)" },
-  manual = { "<leader>Mo really starts the configured external player" },
+  manual = {
+    "<leader>Mo really starts the configured external player",
+    "Without images.nvim, :Media frame opens the still in the system's picture viewer",
+  },
 }

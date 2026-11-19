@@ -76,6 +76,7 @@ function _G.boot()
   vim.env.XDG_CACHE_HOME = _G.dir .. "/cache"
   require("media").setup({})
   local ui = require("media.ui")
+  _G.real_show_image = _G.real_show_image or ui.show_image
   ui.show_image = function(png)
     _G.shown = png
   end
@@ -378,6 +379,39 @@ end
 ---@return { program: string, argv: string[], cwd: string }[]
 function _G.calls(program)
   return require("testing.fake_programs").read(vim.env.TESTING_FAKES, program)
+end
+
+---The first line of the current buffer that holds `text` (plain), or "".
+---@param text string
+---@return string
+function _G.line_with(text)
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(0, 0, -1, false)) do
+    if line:find(text, 1, true) then return line end
+  end
+  return ""
+end
+
+---The calls of the system opener stand-ins (`fakes = { "explorer", "xdg-open", "open" }`), in that order.
+---@return { program: string, argv: string[], cwd: string }[]
+function _G.opened()
+  local out = {}
+  for _, program in ipairs({ "explorer", "xdg-open", "open" }) do
+    vim.list_extend(out, _G.calls(program))
+  end
+  return out
+end
+
+---On Windows lib.nvim's open_default starts `explorer.exe`, which a `.cmd` stand-in cannot catch; strip the `.exe`
+---before its detached run, so the stand-in `explorer` is started instead (as markdown.nvim's opener sheets do;
+---testing.nvim task fakes-unter-windows-exe-namen-explorer-exe-rundll32-exe-und). Elsewhere nothing changes.
+function _G.opener_bare_name()
+  if vim.fn.has("win32") == 0 then return end
+  local run = require("lib.nvim.cross.run")
+  local detached = run.run_detached
+  run.run_detached = function(argv, opts)
+    argv[1] = argv[1]:gsub("%.exe$", "")
+    return detached(argv, opts)
+  end
 end
 
 ---Focus the tree window.

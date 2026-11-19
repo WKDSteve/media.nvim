@@ -37,6 +37,11 @@ return {
     docs = "docs/commands.md",
   },
   {
+    id = "media.playback-api",
+    title = "A run of stills and the sound beside it, for a plugin that plays a video as text (hover.nvim)",
+    docs = "docs/api.md",
+  },
+  {
     id = "media.dashboard",
     title = "One list across image, PDF, audio and video files: text missing, stale or fine, with batch actions",
     surface = { "command:Media dashboard" },
