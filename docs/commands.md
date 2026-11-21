@@ -335,7 +335,7 @@ over: you get its own error instead.
 | `out=` | Writes | Why you would |
 | --- | --- | --- |
 | `buffer` | nothing — a scratch window | The default: a machine transcript is worth reading before it is worth keeping |
-| `sidecar` | `<file>.transcript.md` | The convention this ecosystem's OCR already established; greppable, and `:Translate` handles it |
+| `sidecar` | `<file>.transcript.md` | The convention this ecosystem's OCR already established; greppable, and `:Translate` handles it. One line per segment, `[HH:MM:SS] text`, so `:Case log merge` places the spoken sentences at their time |
 | `srt` | `<file>.srt` | SubRip — what every player reads |
 | `vtt` | `<file>.vtt` | WebVTT — what a browser reads |
 

@@ -31,5 +31,25 @@ return function(H)
   local content = sidecar.content("/videos/talk.mp4", transcript)
   H.match(content, "^# Transcript %— talk%.mp4", "the heading names the source file")
   H.match(content, "whisper_cpp %(ggml%-base%.en%.bin%)", "engine and model are both recorded")
-  H.match(content, "Hello world%.", "the flat text is in the body")
+  H.match(content, "\n%[00:00:00%] Hello\n", "a segment is a line with the time mark of its start")
+  H.match(content, "\n%[00:00:01%] world%.\n", "the next one is on its own line")
+
+  local long = sidecar.content("/v/a.mp4", {
+    engine = "x",
+    segments = {
+      { s = 3725.9, e = 3730, text = "late\n\nline" },
+      { s = 3731, e = 3732, text = "  " },
+      { s = 3733, e = 3734, text = "last" },
+    },
+  })
+  H.match(
+    long,
+    "\n%[01:02:05%] late line\n",
+    "hours, whole seconds, a line break inside a segment is a space"
+  )
+  H.match(long, "\n%[01:02:13%] last\n", "an empty segment is left out")
+  H.eq(select(2, long:gsub("%[%d%d:%d%d:%d%d%]", "")), 2, "two marks, no more")
+
+  local flat = sidecar.content("/v/a.mp4", { engine = "x", segments = {}, text = "" })
+  H.match(flat, "# Transcript", "a transcript without segments still gets its heading")
 end

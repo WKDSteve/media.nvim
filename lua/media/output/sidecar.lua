@@ -33,6 +33,35 @@ function M.is_stale(path)
   return (source.mtime and source.mtime.sec or 0) > (sidecar.mtime and sidecar.mtime.sec or 0)
 end
 
+--- `[HH:MM:SS]` -- the time mark of a segment's start, whole seconds. The shape
+--- `:Case log merge` (casedesk) reads a Markdown transcript by, so the spoken
+--- sentences land between the log entries at the time they were said.
+---@param seconds number|nil
+---@return string
+function M.mark(seconds)
+  local total = math.floor(math.max(0, tonumber(seconds) or 0))
+  return ("[%02d:%02d:%02d]"):format(
+    math.floor(total / 3600),
+    math.floor(total / 60) % 60,
+    total % 60
+  )
+end
+
+--- The body of the sidecar: one line per segment, `[HH:MM:SS] text`. A segment
+--- without text is left out; a transcript without any segment keeps its flat
+--- text, which is all there is.
+---@param transcript Media.Transcript
+---@return string
+local function body(transcript)
+  local segments = require("media.core.segments")
+  local lines = {}
+  for _, cue in ipairs(segments.cues(transcript.segments)) do
+    lines[#lines + 1] = M.mark(cue.s) .. " " .. cue.text:gsub("\n", " ")
+  end
+  if #lines == 0 then return segments.to_text(transcript.segments or {}) end
+  return table.concat(lines, "\n")
+end
+
 --- The sidecar document for one transcript.
 ---
 --- Pure, and public, for the same reason `sidecar_content` in `case/ocr.lua`
@@ -56,7 +85,7 @@ function M.content(path, transcript)
     "> correct this file rather than the source; nothing regenerates it unless",
     "> the media file itself changes.",
     "",
-    require("media.core.segments").to_text(transcript.segments),
+    body(transcript),
     "",
   }, "\n")
 end
