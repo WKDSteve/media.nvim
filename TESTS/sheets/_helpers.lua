@@ -414,9 +414,11 @@ end
 
 ---On Windows lib.nvim's open_default starts `explorer.exe`, which a `.cmd` stand-in cannot catch; strip the `.exe`
 ---before its detached run, so the stand-in `explorer` is started instead (as markdown.nvim's opener sheets do;
----testing.nvim task fakes-unter-windows-exe-namen-explorer-exe-rundll32-exe-und). Elsewhere nothing changes.
+---testing.nvim task fakes-unter-windows-exe-namen-explorer-exe-rundll32-exe-und). Under WSL open_default starts
+---the Windows `explorer.exe` through interop (a window on the desktop, never the stand-in): the same strip sends
+---it to the stand-in `explorer` there. Elsewhere nothing changes.
 function _G.opener_bare_name()
-  if vim.fn.has("win32") == 0 then return end
+  if vim.fn.has("win32") == 0 and not require("lib.nvim.cross.platform.is_wsl")() then return end
   local run = require("lib.nvim.cross.run")
   local detached = run.run_detached
   run.run_detached = function(argv, opts)
