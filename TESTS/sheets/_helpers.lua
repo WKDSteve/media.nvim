@@ -28,6 +28,30 @@ function _G.noted(text)
   return false
 end
 
+---Note what media.nvim says in `_G.notes` (and `_G.warnings` from WARN on). Its notifier is a lib.nvim
+---toast when lib.nvim is there, and a toast never reaches `vim.notify` (lib.nvim 161d963: without ui.nvim
+---even a multi-line message, the list of `:Media engines`, is a toast). Each message still goes on to the
+---real notifier. Wraps once per editor.
+function _G.hear_media()
+  local notifier = require("media.util.notify")
+  if notifier.__heard then return end
+  notifier.__heard = true
+  local levels = { warn = vim.log.levels.WARN, error = vim.log.levels.ERROR }
+  for _, name in ipairs({ "notify", "info", "warn", "error" }) do
+    local real = notifier[name]
+    if type(real) == "function" then
+      notifier[name] = function(message, level, ...)
+        _G.notes[#_G.notes + 1] = tostring(message)
+        local at = name == "notify" and (type(level) == "number" and level or vim.log.levels.INFO)
+          or levels[name]
+          or vim.log.levels.INFO
+        if at >= vim.log.levels.WARN then _G.warnings[#_G.warnings + 1] = tostring(message) end
+        return real(message, level, ...)
+      end
+    end
+  end
+end
+
 ---Forget the notifications and what the stubs recorded.
 function _G.forget()
   _G.notes = {}
@@ -75,6 +99,7 @@ function _G.boot()
 
   vim.env.XDG_CACHE_HOME = _G.dir .. "/cache"
   require("media").setup({})
+  _G.hear_media()
   local ui = require("media.ui")
   _G.real_show_image = _G.real_show_image or ui.show_image
   ui.show_image = function(png)
@@ -284,21 +309,7 @@ function _G.tree_boot(opts)
     tree = { keys = { transcribe = "gmt", play = "gmp", sheet = "gms" } },
   })
   -- media.nvim speaks through the toasts of lib.nvim, which never reach `vim.notify`: note what it says here
-  local notifier = require("media.util.notify")
-  local levels = { warn = vim.log.levels.WARN, error = vim.log.levels.ERROR }
-  for _, name in ipairs({ "notify", "info", "warn", "error" }) do
-    local real = notifier[name]
-    if type(real) == "function" then
-      notifier[name] = function(message, level, ...)
-        _G.notes[#_G.notes + 1] = tostring(message)
-        local at = name == "notify" and (type(level) == "number" and level or vim.log.levels.INFO)
-          or levels[name]
-          or vim.log.levels.INFO
-        if at >= vim.log.levels.WARN then _G.warnings[#_G.warnings + 1] = tostring(message) end
-        return real(message, level, ...)
-      end
-    end
-  end
+  _G.hear_media()
   -- the picture viewer: a headless child has no terminal that draws one
   require("media.ui").show_image = function(png)
     _G.shown = png
